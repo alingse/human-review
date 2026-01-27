@@ -57,15 +57,11 @@ async fn main() -> Result<()> {
     println!();
 
     // 打开浏览器
-    if !args.no_browser {
-        if let Err(e) = open::that(&url) {
-            warn!("Failed to open browser: {}", e);
-            println!("  {}", format!("Please open {} in your browser", url).yellow());
-        } else {
-            println!("  {}", "Browser opened automatically".green());
-        }
+    if let Err(e) = open::that(&url) {
+        warn!("Failed to open browser: {}", e);
+        println!("  {}", format!("Please open {} in your browser", url).yellow());
     } else {
-        println!("  {}", format!("Open {} in your browser", url).yellow());
+        println!("  {}", "Browser opened automatically".green());
     }
 
     println!();

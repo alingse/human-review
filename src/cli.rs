@@ -14,10 +14,6 @@ pub struct Args {
     #[arg(short, long, default_value = "0")]
     pub port: u16,
 
-    /// Don't open browser automatically
-    #[arg(long, default_value = "false")]
-    pub no_browser: bool,
-
     /// Output results in JSON format
     #[arg(long, default_value = "false")]
     pub json: bool,
