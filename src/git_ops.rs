@@ -6,6 +6,17 @@ use std::cell::RefCell;
 
 use crate::models::{InputType, FileData, LineData};
 
+/// 从 FileData 向量中提取文件的行内容
+pub fn extract_file_lines(files: Vec<FileData>) -> std::collections::HashMap<String, Vec<String>> {
+    files
+        .into_iter()
+        .map(|file| {
+            let lines: Vec<String> = file.lines.iter().map(|l| l.content.clone()).collect();
+            (file.path, lines)
+        })
+        .collect()
+}
+
 /// 解析输入
 pub fn parse_input(input: &str) -> Result<InputType> {
     // 检查是否是 "diff" 关键字
@@ -22,7 +33,7 @@ pub fn parse_input(input: &str) -> Result<InputType> {
 
     // 尝试解析为 commit hash
     if let Ok(repo) = Repository::discover(".") {
-        if let Ok(_) = repo.revparse_single(input) {
+        if repo.revparse_single(input).is_ok() {
             return Ok(InputType::CommitDiff {
                 commit: input.to_string(),
             });
@@ -187,9 +198,7 @@ fn diff_to_file_data(diff: &Diff, _repo: &Repository) -> Result<Vec<FileData>> {
             let status = match delta.status() {
                 Delta::Added => "added",
                 Delta::Deleted => "deleted",
-                Delta::Modified => "modified",
-                Delta::Renamed => "renamed",
-                Delta::Copied => "copied",
+                Delta::Modified | Delta::Renamed | Delta::Copied => "modified",
                 _ => "modified",
             };
 
@@ -206,12 +215,7 @@ fn diff_to_file_data(diff: &Diff, _repo: &Repository) -> Result<Vec<FileData>> {
         None,
         Some(&mut |delta, _hunk| {
             // Process hunk header if needed
-            let _path = delta
-                .new_file()
-                .path()
-                .and_then(|p| p.to_str())
-                .unwrap_or("binary")
-                .to_string();
+            let _ = delta.new_file().path();
             true
         }),
         Some(&mut |delta, _hunk, line| {

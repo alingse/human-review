@@ -111,7 +111,10 @@ class ReviewApp {
 
         // Update highlight.js theme
         const hlTheme = document.getElementById('highlight-theme');
-        hlTheme.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-${theme}.min.css`;
+        // Map theme to correct highlight.js CSS file name
+        // Note: light theme uses 'github', not 'github-light'
+        const hlThemeName = theme === 'light' ? 'github' : `github-${theme}`;
+        hlTheme.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${hlThemeName}.min.css`;
 
         // Re-render current file with new theme
         if (this.currentFile) {

@@ -14,7 +14,7 @@ mod output;
 mod static_assets;
 
 use cli::Args;
-use git_ops::parse_input;
+use git_ops::{parse_input, extract_file_lines};
 use output::{print_summary, print_json};
 
 #[tokio::main]
@@ -81,31 +81,26 @@ async fn main() -> Result<()> {
     let final_data = server::wait_for_completion().await?;
 
     // 获取文件内容用于显示上下文
-    let mut file_contents: HashMap<String, Vec<String>> = HashMap::new();
-    match &final_data.input_type {
+    let file_contents: HashMap<String, Vec<String>> = match &final_data.input_type {
         crate::models::InputType::FileContent { path } => {
             if let Ok(content) = std::fs::read_to_string(path) {
                 let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-                file_contents.insert(path.clone(), lines);
+                HashMap::from([(path.clone(), lines)])
+            } else {
+                HashMap::new()
             }
         }
         crate::models::InputType::CommitDiff { commit } => {
-            if let Ok(files) = git_ops::get_commit_diff(commit) {
-                for file in files {
-                    let lines: Vec<String> = file.lines.iter().map(|l| l.content.clone()).collect();
-                    file_contents.insert(file.path, lines);
-                }
-            }
+            git_ops::get_commit_diff(commit)
+                .map(extract_file_lines)
+                .unwrap_or_default()
         }
         crate::models::InputType::WorkingTreeDiff => {
-            if let Ok(files) = git_ops::get_working_tree_diff() {
-                for file in files {
-                    let lines: Vec<String> = file.lines.iter().map(|l| l.content.clone()).collect();
-                    file_contents.insert(file.path, lines);
-                }
-            }
+            git_ops::get_working_tree_diff()
+                .map(extract_file_lines)
+                .unwrap_or_default()
         }
-    }
+    };
 
     if args.json {
         print_json(&final_data);

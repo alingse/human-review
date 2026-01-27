@@ -60,15 +60,16 @@ pub async fn update_comment_handler(
 ) -> Result<Json<Comment>, AppError> {
     let mut data = state.data.write().await;
 
-    if let Some(idx) = data.comments.iter().position(|c| c.id == id) {
-        if let Some(text) = req.text {
-            data.comments[idx].text = text;
-        }
-        let updated = data.comments[idx].clone();
-        Ok(Json(updated))
-    } else {
-        Err(AppError::CommentNotFound(id))
-    }
+    data.comments
+        .iter_mut()
+        .find(|c| c.id == id)
+        .map(|comment| {
+            if let Some(text) = req.text {
+                comment.text = text;
+            }
+            Json(comment.clone())
+        })
+        .ok_or_else(|| AppError::CommentNotFound(id))
 }
 
 /// 删除评论
