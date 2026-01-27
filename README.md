@@ -2,115 +2,41 @@
 
 A CLI tool for manual code review with a web-based interface. Designed to integrate seamlessly into your AI coding workflow (like Claude Code, Cursor, etc.), providing a browser-based review experience where you can add comments without scrolling through terminal input boxes.
 
-## Why hrevu?
+## Quick Start / 快速开始
 
-When using AI coding assistants, code review often happens in cramped terminal input boxes with limited context. hrevu solves this by:
-
-- **Browser-based review**: View changes in a full-featured web interface
-- **Line-level commenting**: Add precise feedback on specific lines
-- **No context switching**: Works alongside your existing AI workflow
-- **Clean output**: Review results are printed to terminal for your AI to process
-
-## Features
-
-- **Multiple Input Modes**
-  - Review commit diffs: `hrevu <commit-hash>`
-  - Review current changes: `hrevu diff` (includes both staged and unstaged)
-  - Review any file: `hrevu <file.md>`
-
-- **Web-Based Review Interface**
-  - Dark theme UI optimized for code review
-  - File-by-file navigation
-  - Line-level commenting
-  - Edit and delete comments
-  - Real-time comment updates
-
-- **Internationalization (i18n)**
-  - Automatic language detection
-  - Supports Chinese (中文) and English
-  - All UI elements translated
-
-- **Clean Terminal Output**
-  - Shows comments with source context
-  - Easy to read summary format
-
-## Installation
-
-### From Source
-
-```bash
-# Requires Rust/Cargo to be installed
-# Clone and build
-git clone https://github.com/alingse/human-review.git
-cd human-review
-cargo build --release
-
-# The binary will be at target/release/hrevu
-```
-
-### Install via Cargo
+### Install CLI Tool / 安装 CLI 工具
 
 ```bash
 cargo install human-review
 ```
 
-## Usage
+This installs the `hrevu` command-line tool.
+这会安装 `hrevu` 命令行工具。
 
-### Review Current Changes
-
-```bash
-hrevu diff
-```
-
-This opens a web interface showing your current uncommitted changes.
-
-### Review a Commit
+### Install Claude Code Skill / 安装 Claude Code 技能
 
 ```bash
-hrevu abc1234
+npx skills add alingse/human-review
 ```
 
-Review the changes in a specific commit.
+This installs the Claude Code skill to your AI coding assistant.
+这会将技能安装到您的 AI 编码助手。
 
-### Review a File
+## Use Cases / 使用场景
 
-```bash
-hrevu README.md
-hrevu src/main.rs
-```
+- **Review plan documents / 审查计划文档**
+  - Review `.md` plan files with detailed feedback
+  - 在计划文档上添加详细评论
 
-View and comment on any file.
+- **Review important code changes / 审查重要代码变更**
+  - Before merging critical features or PRs with local human review + comments
+  - 合并重要功能或 PR 前进行本地人工审查和评论
 
-### Options
+- **AI workflow integration / AI 工作流集成**
+  - In Claude Code: `/human-review diff`, `/human-review README.md`
+  - 在 Claude Code 中使用：`/human-review diff`、`/human-review README.md`
 
-```bash
-hrevu diff --help
-
-Options:
-  -p, --port <PORT>    Port for web server (default: random available)
-      --no-browser     Don't open browser automatically
-  -h, --help           Print help
-
-  Examples:
-    hrevu diff                  Review current changes
-    hrevu abc123                 Review commit abc123
-    hrevu src/main.rs            Review a file
-    hrevu diff --port 8080       Use custom port
-    hrevu diff --no-browser      Don't auto-open browser
-```
-
-## Workflow
-
-1. **Start hrevu** with your desired input (commit/diff/file)
-2. **Browser opens** automatically showing the review interface
-3. **Add comments** by clicking on any line or using the "+ Global Comment" button
-4. **Edit or delete** comments as needed
-5. **Click "Complete Review"** (完成审查) when done
-6. **View summary** in terminal with all comments and source context
-
-## Output Format
-
-### Terminal Output
+## Output Example / 输出示例
 
 ```
 ════════════════════════════════════════════════════════════
@@ -124,28 +50,51 @@ Comments: 2
 
 📄 README.md
 
-💬 Line 12: 请你使用中文
-    ▸ - Review commit diffs: `hrevu <commit-hash>`
+💬 Line 12: This section needs more details
+    ▸ ```bash
     ─ 06:28
 
-💬 Line 192: 这个最好提供 build
-    ▸ cargo install human-review
-    ─ 06:28
+💬 第 30 行: 这个部分需要更多说明
+    ▸ ## Use Cases
+    ─ 06:29
 
 ────────────────────────────────────────────────────────────
 Summary: 2 total comments
-
-✓ Review complete!
 ```
 
-Comments are displayed with:
-- Line number and comment text
-- Original source content (marked with `▸`)
-- Timestamp
+## Why hrevu? / 为什么选择 hrevu?
 
-## Language Support
+When using AI coding assistants, code review often happens in cramped terminal input boxes with limited scrolling context. `/human-review` solves this by providing a web interface for human review with line-level comments.
+使用 AI 编码助手时，代码审查通常在狭窄的终端输入框中进行，上下文滚动受限。`/human-review` 通过提供 Web 界面进行人工审查和行级评论来解决这个问题。
+
+- **Browser-based review**: View changes in a full-featured web interface / 在功能齐全的 Web 界面中查看变更
+- **Line-level commenting**: Add precise feedback on specific lines / 在特定行上添加精确反馈
+- **No context switching**: Works alongside your existing AI workflow / 与现有 AI 工作流无缝配合
+- **Clean output**: Review results are printed to terminal for your AI to process / 审查结果输出到终端供 AI 处理
+
+## Features / 功能特性
+
+- **Multiple Input Modes / 多种输入模式**
+  - Review commit diffs: `hrevu <commit-hash>`
+  - Review current changes: `hrevu diff` (includes both staged and unstaged / 包括已暂存和未暂存的变更)
+  - Review any file: `hrevu <file.md>`
+
+- **Web-Based Review Interface / 基于 Web 的审查界面**
+  - Dark theme UI optimized for code review / 深色主题 UI，专为代码审查优化
+  - File-by-file navigation / 逐文件导航
+  - Line-level commenting / 行级评论
+  - Edit and delete comments / 编辑和删除评论
+  - Real-time comment updates / 实时评论更新
+
+- **Internationalization (i18n) / 国际化**
+  - Automatic language detection / 自动语言检测
+  - Supports Chinese (中文) and English / 支持中文和英文
+  - All UI elements translated / 所有 UI 元素均已翻译
+
+## Language Support / 语言支持
 
 hrevu automatically detects your browser language and displays the UI accordingly:
+hrevu 会自动检测您的浏览器语言并相应显示界面：
 
 **Chinese (中文)**:
 - 文件 | 评论 | 完成审查
@@ -158,91 +107,7 @@ hrevu automatically detects your browser language and displays the UI accordingl
 - + Global Comment
 
 The detection is based on `navigator.language` - any locale starting with `zh` will show Chinese, all others show English.
-
-## Claude Code Integration
-
-hrevu includes a Claude Code skill that automates the review workflow.
-
-### Quick Install
-
-```bash
-# Install the skill directly from GitHub
-npx skills add alingse/human-review
-```
-
-### Manual Install
-
-```bash
-# Or manually copy the skill to your project
-git clone https://github.com/alingse/human-review.git
-cp -r human-review/skills/human-review /path/to/your/project/.claude/skills/
-```
-
-### Using the Skill
-
-Once installed, you can invoke the skill in Claude Code:
-
-```
-/human-review diff           # Review current changes
-/human-review README.md      # Review a specific file
-/human-review abc1234        # Review a commit
-```
-
-The skill will:
-1. Launch hrevu with the appropriate input
-2. Wait for you to complete the review in the browser
-3. Parse your comments from the terminal output
-4. Automatically apply the suggested changes
-
-## Development
-
-### Project Structure
-
-```
-human-review/
-├── src/
-│   ├── main.rs         # CLI entry point
-│   ├── cli.rs          # Argument parsing
-│   ├── server.rs       # Web server
-│   ├── git_ops.rs      # Git operations
-│   ├── models.rs       # Data structures
-│   ├── routes.rs       # API handlers
-│   ├── output.rs       # Output formatting
-│   └── static_assets.rs # Asset embedding
-├── templates/
-│   └── review.html     # Web UI template
-├── static/
-│   ├── app.css         # Styles
-│   └── app.js          # Frontend logic with i18n
-├── .claude/
-│   └── skills/
-│       └── human-review/  # Claude Code skill (local)
-└── skills/
-    └── human-review/      # Claude Code skills (for distribution)
-        └── SKILL.md
-```
-
-### Running in Development
-
-```bash
-cargo run -- diff
-```
-
-### Building
-
-```bash
-cargo build --release
-```
-
-The resulting binary is self-contained with all HTML, CSS, and JavaScript assets embedded using `rust-embed`.
-
-## How It Works
-
-1. **Asset Embedding**: Static files (HTML/CSS/JS) are embedded in the binary at compile time
-2. **Web Server**: A lightweight Axum server serves the review interface
-3. **State Management**: Comments are stored in memory during the review session
-4. **Completion**: When you click "Complete Review", comments are printed to terminal with context
-5. **No Persistence**: No files are written to disk - everything runs in memory
+检测基于 `navigator.language` - 任何以 `zh` 开头的语言环境将显示中文，其他显示英文。
 
 ## License
 
