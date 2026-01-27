@@ -1,58 +1,59 @@
 ---
 name: human-review
-description: 启动人工审查流程，自动读取评论并修改代码
+description: Enable AI agents to collect human code review feedback via web interface and apply suggested changes
 argument-hint: [target]
+user-invocable: true
 disable-model-invocation: false
 ---
 
-## Human Review Skill / 人工审查技能
+## Human Review Skill
 
-自动启动 Web 人工审查界面，等待用户完成评论，然后自动应用建议的修改。
+Automatically launches a web-based review interface, waits for user to complete comments, then applies suggested changes.
 
-**依赖工具**：此技能依赖 `hrevu` CLI 工具，请先安装：
+**Dependency**: This skill requires the `hrevu` CLI tool. Install first:
 ```bash
 cargo install human-review
 ```
 
-## 工作流程
+## Workflow
 
-### 1. 检测变更并启动 hrevu
+### 1. Detect Changes and Launch hrevu
 
-首先判断当前状态：
-- 用户指定了文件 → `hrevu <file>`
-- 用户指定了 commit → `hrevu <commit>`
-- 无参数 → 检查 git 变更，如有变更则使用 `hrevu diff`
+Determine current state:
+- User specified file → `hrevu <file>`
+- User specified commit → `hrevu <commit>`
+- No argument → Check git changes, use `hrevu diff` if changes exist
 
-### 2. 等待审查完成
+### 2. Wait for Review Completion
 
-- 运行 hrevu 命令
-- 浏览器自动打开审查界面
-- **等待**用户在浏览器中完成评论
-- 用户点击"完成审查"后，hrevu 输出摘要并退出
+- Run hrevu command
+- Browser automatically opens review interface
+- **Wait** for user to complete comments in browser
+- After user clicks "Finish Review", hrevu outputs summary and exits
 
-### 3. 解析审查结果
+### 3. Parse Review Results
 
-从终端输出解析审查结果。每条评论包含：
-- 文件名
-- 行号
-- 评论内容
-- 源代码上下文（用 `▸` 标记）
+Parse review results from terminal output. Each comment contains:
+- File name
+- Line number
+- Comment content
+- Source code context (marked with `▸`)
 
-### 4. 自动修改代码
+### 4. Automatically Apply Changes
 
-根据评论内容使用 Edit 工具应用修改。
+Apply modifications using Edit tool based on comments.
 
-**跳过策略：**
-- 纯赞美（如 "Great!", "LGTM"）
-- 无具体修改方案的模糊建议
+**Skip Strategy:**
+- Pure praise (e.g., "Great!", "LGTM")
+- Vague suggestions without specific modification plans
 
-**修改策略：**
-- 明确的代码修改 → 直接使用 Edit
-- 变量/函数重命名 → 使用 Edit + replace_all
-- 添加内容（错误处理、导入等）→ 添加相应代码
+**Modification Strategy:**
+- Explicit code changes → Use Edit directly
+- Variable/function renaming → Use Edit + replace_all
+- Add content (error handling, imports, etc.) → Add corresponding code
 
-**重要：**
-- **必须等待** hrevu 完成后再继续
-- 使用 Edit 工具修改代码，保留原有缩进和格式
-- 每次修改后报告位置和内容
-- 如果不确定某个修改，请向用户确认
+**Important:**
+- **Must wait** for hrevu to complete before continuing
+- Use Edit tool to modify code, preserve original indentation and formatting
+- Report location and content after each modification
+- Confirm with user if uncertain about any change

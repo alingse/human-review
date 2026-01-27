@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     let input_str = match &input {
         crate::models::InputType::CommitDiff { commit } => format!("Commit: {}", commit),
         crate::models::InputType::FileContent { path } => format!("File: {}", path),
-        crate::models::InputType::WorkingTreeDiff => "Working Tree Diff".to_string(),
+        crate::models::InputType::WorkingTreeDiff => "Current Changes".to_string(),
     };
 
     let data = crate::models::ReviewData {

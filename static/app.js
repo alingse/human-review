@@ -25,6 +25,9 @@ const i18n = {
         reviewComplete: (count) => `审查完成！共 ${count} 条评论`,
         globalCommentLabel: '全局评论',
         line: '行',
+        currentChanges: '当前更改',
+        commitChanges: '提交更改',
+        fileContent: '文件内容',
     },
     en: {
         files: 'Files',
@@ -51,6 +54,9 @@ const i18n = {
         reviewComplete: (count) => `Review complete! ${count} comment${count !== 1 ? 's' : ''}`,
         globalCommentLabel: 'Global comment',
         line: 'Line',
+        currentChanges: 'Current Changes',
+        commitChanges: 'Commit Changes',
+        fileContent: 'File Content',
     }
 };
 
@@ -70,6 +76,17 @@ function t(key, ...args) {
         return value(...args);
     }
     return value || key;
+}
+
+// Translate review title
+function translateTitle(title) {
+    const lang = detectLanguage();
+    if (lang === 'zh') {
+        if (title === 'Current Changes') return '当前更改';
+        if (title.startsWith('Commit:')) return title.replace('Commit:', '提交：');
+        if (title.startsWith('File:')) return title.replace('File:', '文件：');
+    }
+    return title;
 }
 
 // hrevu Review Application
@@ -186,7 +203,7 @@ class ReviewApp {
             const response = await fetch('/api/data');
             this.data = await response.json();
 
-            document.getElementById('review-title').textContent = this.data.title;
+            document.getElementById('review-title').textContent = translateTitle(this.data.title);
             this.files = this.data.files;
             this.comments = this.data.comments;
 
