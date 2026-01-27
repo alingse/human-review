@@ -95,7 +95,7 @@ fn get_diff_with_head(repo: &Repository, tree: &git2::Tree) -> Result<Vec<FileDa
 
 /// Merge two diffs into a single FileData vector
 fn merge_diffs(cached_diff: Diff, workdir_diff: Diff) -> Result<Vec<FileData>> {
-    let mut merged_files = std::collections::HashMap::new();
+    let mut merged_files: std::collections::HashMap<String, FileData> = std::collections::HashMap::new();
 
     for file in diff_to_file_data(&cached_diff)? {
         merged_files.insert(file.path.clone(), file);
@@ -192,7 +192,7 @@ fn enumerate_file_lines(content: &str, line_type: Option<&str>) -> Vec<LineData>
 
 /// Convert git2 Diff to FileData
 fn diff_to_file_data(diff: &Diff) -> Result<Vec<FileData>> {
-    let files_map = RefCell::new(std::collections::HashMap::<String, FileData>::new());
+    let files_map: RefCell<std::collections::HashMap<String, FileData>> = RefCell::new(std::collections::HashMap::new());
 
     diff.foreach(
         &mut |delta, _progress| {
@@ -221,10 +221,7 @@ fn diff_to_file_data(diff: &Diff) -> Result<Vec<FileData>> {
             true
         },
         None,
-        Some(&mut |delta, _hunk| {
-            let _ = delta.new_file().path();
-            true
-        }),
+        Some(&mut |_delta, _hunk| true),
         Some(&mut |delta, _hunk, line| {
             let path = delta
                 .new_file()
@@ -248,8 +245,9 @@ fn diff_to_file_data(diff: &Diff) -> Result<Vec<FileData>> {
                 _ => None,
             };
 
+            let is_removed = line_type == Some("removed");
             let line_num = line.new_lineno().unwrap_or_else(|| {
-                if line_type == Some("removed") {
+                if is_removed {
                     line.old_lineno().unwrap_or(0)
                 } else {
                     0

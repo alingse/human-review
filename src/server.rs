@@ -88,7 +88,8 @@ async fn serve_static_handler(
     State(_state): State<AppState>,
     Path(path): Path<String>,
 ) -> impl IntoResponse {
-    match static_assets::get_asset(&format!("/static/{}", path)) {
+    let asset_path = format!("/static/{}", path);
+    match static_assets::get_asset(&asset_path) {
         Some((data, mime)) => {
             let mut response = Response::new(Body::from(data));
             response.headers_mut().insert(
