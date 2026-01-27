@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Project Overview
 
-**hrevu** (v0.1.2) — CLI tool for manual code review with web interface. Review commits, diffs, or files with line-level commenting. Self-contained binary with embedded assets.
+**hrevu** — CLI tool for manual code review with web interface. Review commits, diffs, or files with line-level commenting. Self-contained binary with embedded assets.
 
 ## Build Commands
 
@@ -95,6 +95,12 @@ CLI → Git Ops → Models → Axum Server → Browser
 - Dark/light toggle
 - CSS custom properties
 - localStorage persistence
+
+## Upgrade Version
+
+To bump version, update these files:
+- `Cargo.toml` — `version` field in `[package]` section
+- `src/cli.rs` — `#[command(version = "...")]` attribute
 
 ## Claude Code Integration
 
