@@ -19,7 +19,6 @@ use output::{print_summary, print_json};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 初始化日志
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -28,12 +27,9 @@ async fn main() -> Result<()> {
         .init();
 
     let args = Args::parse();
-
-    // 解析输入
     let input = parse_input(&args.input)?;
     info!("Parsed input: {:?}", input);
 
-    // 创建数据
     let input_str = input.display_title();
 
     let data = crate::models::ReviewData {
@@ -49,14 +45,12 @@ async fn main() -> Result<()> {
     println!("  Target: {}", data.input);
     println!();
 
-    // 启动服务器
     let port = server::run(args.port, data).await?;
     let url = format!("http://localhost:{}", port);
 
     println!("  Server: {}", url.dimmed());
     println!();
 
-    // 打开浏览器
     if let Err(e) = open::that(&url) {
         warn!("Failed to open browser: {}", e);
         println!("  {}", format!("Please open {} in your browser", url).yellow());
@@ -69,10 +63,8 @@ async fn main() -> Result<()> {
     println!("{}", "Press Ctrl+C to cancel".dimmed());
     println!();
 
-    // 等待服务器完成并获取最终数据
     let final_data = server::wait_for_completion().await?;
 
-    // 获取文件内容用于显示上下文
     let file_contents: HashMap<String, Vec<String>> = match &final_data.input_type {
         crate::models::InputType::FileContent { path } => {
             if let Ok(content) = std::fs::read_to_string(path) {

@@ -2,22 +2,22 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-/// 审查数据
+/// Review data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewData {
-    /// 输入类型
+    /// Input type
     pub input_type: InputType,
-    /// 原始输入
+    /// Original input
     pub input: String,
-    /// 评论列表
+    /// Comments list
     pub comments: Vec<Comment>,
-    /// 创建时间
+    /// Creation time
     pub created_at: DateTime<Utc>,
-    /// 状态
+    /// Status
     pub status: ReviewStatus,
 }
 
-/// 输入类型
+/// Input type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum InputType {
@@ -39,20 +39,20 @@ impl InputType {
     }
 }
 
-/// 评论
+/// Comment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Comment {
-    /// 唯一 ID
+    /// Unique ID
     pub id: String,
-    /// 文件路径（diff 模式下）
+    /// File path (for diff mode)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
-    /// 行号
+    /// Line number
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line: Option<u32>,
-    /// 评论内容
+    /// Comment content
     pub text: String,
-    /// 创建时间
+    /// Creation time
     pub created_at: DateTime<Utc>,
 }
 
@@ -68,7 +68,7 @@ impl Comment {
     }
 }
 
-/// 审查状态
+/// Review status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReviewStatus {
     #[serde(rename = "in_progress")]
@@ -77,7 +77,7 @@ pub enum ReviewStatus {
     Completed,
 }
 
-/// API 响应 - 初始数据
+/// API response - initial data
 #[derive(Debug, Serialize)]
 pub struct DataResponse {
     pub input_type: InputType,
@@ -85,7 +85,7 @@ pub struct DataResponse {
     pub comments: Vec<Comment>,
 }
 
-/// 文件数据（用于前端渲染）
+/// File data (for frontend rendering)
 #[derive(Debug, Serialize)]
 pub struct FileData {
     pub path: String,
@@ -93,17 +93,17 @@ pub struct FileData {
     pub lines: Vec<LineData>,
 }
 
-/// 行数据
+/// Line data
 #[derive(Debug, Clone, Serialize)]
 pub struct LineData {
     pub number: u32,
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "type")]
-    pub type_: Option<String>, // "added", "removed", or null
+    pub type_: Option<String>,
 }
 
-/// API 请求 - 添加评论
+/// API request - add comment
 #[derive(Debug, Deserialize)]
 pub struct AddCommentRequest {
     #[serde(rename = "file")]
@@ -112,14 +112,14 @@ pub struct AddCommentRequest {
     pub text: String,
 }
 
-/// 更新评论请求
+/// Update comment request
 #[derive(Debug, Deserialize)]
 pub struct UpdateCommentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
 }
 
-/// 完成响应
+/// Completion response
 #[derive(Debug, Serialize)]
 pub struct CompletionResponse {
     pub message: String,

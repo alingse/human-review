@@ -10,13 +10,12 @@ use crate::models::*;
 use crate::server::{AppState, COMPLETION_SIGNAL, FINAL_DATA};
 use crate::git_ops;
 
-/// 获取初始数据
+/// Get initial data
 pub async fn get_data_handler(
     State(state): State<AppState>,
 ) -> Result<Json<DataResponse>, AppError> {
     let data = state.data.read().await;
 
-    // 根据 input_type 获取文件内容
     let files = match &data.input_type {
         InputType::CommitDiff { commit } => git_ops::get_commit_diff(commit)?,
         InputType::FileContent { path } => git_ops::get_file_content(path)?,
@@ -32,7 +31,7 @@ pub async fn get_data_handler(
     Ok(Json(response))
 }
 
-/// 添加评论
+/// Add comment
 pub async fn add_comment_handler(
     State(state): State<AppState>,
     Json(req): Json<AddCommentRequest>,
@@ -47,7 +46,7 @@ pub async fn add_comment_handler(
     Ok(Json(comment))
 }
 
-/// 更新评论
+/// Update comment
 pub async fn update_comment_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -67,7 +66,7 @@ pub async fn update_comment_handler(
         .ok_or_else(|| AppError::CommentNotFound(id))
 }
 
-/// 删除评论
+/// Delete comment
 pub async fn delete_comment_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -83,17 +82,14 @@ pub async fn delete_comment_handler(
     }
 }
 
-/// 完成审查
+/// Complete review
 pub async fn complete_handler(
     State(state): State<AppState>,
 ) -> Result<Json<CompletionResponse>, AppError> {
     let mut data = state.data.write().await;
     data.status = ReviewStatus::Completed;
 
-    // 保存最终数据
     let _ = FINAL_DATA.set((*data).clone());
-
-    // 发送完成信号
     COMPLETION_SIGNAL.notify_one();
 
     Ok(Json(CompletionResponse {
@@ -102,8 +98,7 @@ pub async fn complete_handler(
     }))
 }
 
-
-/// 应用错误
+/// Application errors
 #[derive(Debug)]
 pub enum AppError {
     CommentNotFound(String),

@@ -2,14 +2,14 @@ use colored::Colorize;
 use crate::models::ReviewData;
 use std::collections::HashMap;
 
-/// 打印 JSON 格式的输出
+/// Print JSON formatted output
 pub fn print_json(data: &ReviewData) {
     if let Ok(json) = serde_json::to_string_pretty(data) {
         println!("{}", json);
     }
 }
 
-/// 打印评论摘要（终端格式）
+/// Print comment summary (terminal format)
 pub fn print_summary(data: &ReviewData, file_contents: &HashMap<String, Vec<String>>) {
     println!();
     println!("{}", "═".repeat(60));
@@ -32,14 +32,12 @@ pub fn print_summary(data: &ReviewData, file_contents: &HashMap<String, Vec<Stri
         return;
     }
 
-    // 按文件分组
     let mut by_file: std::collections::HashMap<Option<String>, Vec<&crate::models::Comment>> =
         std::collections::HashMap::new();
     for comment in &data.comments {
         by_file.entry(comment.file.clone()).or_default().push(comment);
     }
 
-    // 打印评论
     for (file, comments) in by_file.iter() {
         if let Some(f) = file {
             println!("\n{}", format!("📄 {}", f).bold());
@@ -57,12 +55,10 @@ pub fn print_summary(data: &ReviewData, file_contents: &HashMap<String, Vec<Stri
 
             println!("{}", comment.text);
 
-            // 显示原文内容和上下文
             if let (Some(file_path), Some(line_num)) = (&comment.file, comment.line) {
                 if let Some(lines) = file_contents.get(file_path) {
                     let idx = (line_num as usize).saturating_sub(1);
 
-                    // 显示上面 3 行上下文
                     let context_start = idx.saturating_sub(3);
                     let context_end = idx;
 
@@ -81,7 +77,6 @@ pub fn print_summary(data: &ReviewData, file_contents: &HashMap<String, Vec<Stri
                         }
                     }
 
-                    // 显示被评论的行（高亮）
                     if idx < lines.len() {
                         let content = lines[idx].trim();
                         if !content.is_empty() {
@@ -104,7 +99,6 @@ pub fn print_summary(data: &ReviewData, file_contents: &HashMap<String, Vec<Stri
         }
     }
 
-    // 统计
     println!();
     println!("{}", "─".repeat(60).dimmed());
     println!(

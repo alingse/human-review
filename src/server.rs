@@ -3,11 +3,12 @@ use axum::{
     body::Body,
     extract::{State, Path},
     http::{header, StatusCode},
-    response::{IntoResponse, Response},
+    response::{Html, IntoResponse, Response},
     routing::{get, post, put, delete},
     Router,
 };
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tower_http::cors::CorsLayer;
 use tracing::info;
@@ -16,17 +17,20 @@ use crate::models::ReviewData;
 use crate::routes::*;
 use crate::static_assets;
 
-/// 服务器状态
+/// Milliseconds to wait after completion signal before returning final data
+const COMPLETION_WAIT_MS: u64 = 100;
+
+/// Server state
 #[derive(Clone)]
 pub struct AppState {
     pub data: Arc<RwLock<ReviewData>>,
 }
 
-/// 全局完成信号和数据
+/// Global completion signal and data storage
 pub static COMPLETION_SIGNAL: tokio::sync::Notify = tokio::sync::Notify::const_new();
 pub static FINAL_DATA: tokio::sync::OnceCell<ReviewData> = tokio::sync::OnceCell::const_new();
 
-/// 运行服务器
+/// Run server
 pub async fn run(port: u16, data: ReviewData) -> Result<u16> {
     let state = AppState {
         data: Arc::new(RwLock::new(data)),
@@ -43,12 +47,10 @@ pub async fn run(port: u16, data: ReviewData) -> Result<u16> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    // 绑定端口
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     let actual_port = listener.local_addr()?.port();
     info!("Server running on port {}", actual_port);
 
-    // 启动服务器
     tokio::spawn(async move {
         if let Err(e) = axum::serve(listener, app).await {
             eprintln!("Server error: {}", e);
@@ -58,11 +60,10 @@ pub async fn run(port: u16, data: ReviewData) -> Result<u16> {
     Ok(actual_port)
 }
 
-/// 等待完成信号并返回最终数据
+/// Wait for completion signal and return final data
 pub async fn wait_for_completion() -> Result<ReviewData> {
     COMPLETION_SIGNAL.notified().await;
-    // 等待一小段时间确保响应被发送
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(COMPLETION_WAIT_MS)).await;
 
     FINAL_DATA
         .get()
@@ -70,17 +71,10 @@ pub async fn wait_for_completion() -> Result<ReviewData> {
         .ok_or_else(|| anyhow::anyhow!("Final data not available"))
 }
 
-/// 主页 handler
+/// Index page handler
 async fn index_handler() -> impl IntoResponse {
     match static_assets::get_template("review.html") {
-        Some(html) => {
-            let mut response = Response::new(Body::from(html));
-            response.headers_mut().insert(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("text/html; charset=utf-8"),
-            );
-            response
-        }
+        Some(html) => Html(html).into_response(),
         None => {
             let mut response = Response::new(Body::from("Template not found"));
             *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
@@ -89,7 +83,7 @@ async fn index_handler() -> impl IntoResponse {
     }
 }
 
-/// 静态资源 handler
+/// Static asset handler
 async fn serve_static_handler(
     State(_state): State<AppState>,
     Path(path): Path<String>,
