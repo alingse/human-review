@@ -15,7 +15,7 @@ mod static_assets;
 
 use cli::Args;
 use git_ops::parse_input;
-use output::print_summary;
+use output::{print_summary, print_json};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -107,7 +107,11 @@ async fn main() -> Result<()> {
         }
     }
 
-    print_summary(&final_data, &file_contents);
+    if args.json {
+        print_json(&final_data);
+    } else {
+        print_summary(&final_data, &file_contents);
+    }
 
     println!();
     println!("{}", "✓ Review complete!".bold().green());

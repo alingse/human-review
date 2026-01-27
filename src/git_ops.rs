@@ -50,11 +50,13 @@ pub fn get_working_tree_diff() -> Result<Vec<FileData>> {
     let mut diff_opts = git2::DiffOptions::new();
     diff_opts.include_unmodified(false);
     diff_opts.recurse_untracked_dirs(true);
+    diff_opts.context_lines(3);
 
     let result = if let Some(tree) = head_tree {
         // 有 HEAD 的情况：合并已暂存和未暂存的变更
         let mut cached_opts = git2::DiffOptions::new();
         cached_opts.include_unmodified(false);
+        cached_opts.context_lines(3);
 
         // 已暂存的变更 (HEAD vs Index, 类似于 --cached)
         let cached_diff = repo.diff_tree_to_index(Some(&tree), None, Some(&mut cached_opts))?;
@@ -141,7 +143,10 @@ pub fn get_commit_diff(commit_hash: &str) -> Result<Vec<FileData>> {
 
     let commit_tree = commit.tree()?;
 
-    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), None)?;
+    let mut diff_opts = git2::DiffOptions::new();
+    diff_opts.context_lines(3);
+
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), Some(&mut diff_opts))?;
 
     diff_to_file_data(&diff, &repo)
 }
@@ -237,14 +242,12 @@ fn diff_to_file_data(diff: &Diff, _repo: &Repository) -> Result<Vec<FileData>> {
             };
 
             if let Some(file) = files_map.borrow_mut().get_mut(&path) {
-                // 只显示变更的行
-                if line_type.is_some() {
-                    file.lines.push(LineData {
-                        number: line_num,
-                        content,
-                        type_: line_type,
-                    });
-                }
+                // 显示所有行，包括上下文行（line_type 为 None 表示上下文）
+                file.lines.push(LineData {
+                    number: line_num,
+                    content,
+                    type_: line_type,
+                });
             }
             true
         }),

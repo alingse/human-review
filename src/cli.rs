@@ -3,8 +3,8 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "hrevu")]
 #[command(author = "hrevu")]
-#[command(version = "0.1.0")]
-#[command(about = "Human review CLI tool", long_about = None)]
+#[command(version = "0.1.1")]
+#[command(about = "Human review CLI tool for AI", long_about = None)]
 pub struct Args {
     /// Input: commit hash, file path, or "diff"
     #[arg(value_name = "INPUT")]
@@ -17,4 +17,8 @@ pub struct Args {
     /// Don't open browser automatically
     #[arg(long, default_value = "false")]
     pub no_browser: bool,
+
+    /// Output results in JSON format
+    #[arg(long, default_value = "false")]
+    pub json: bool,
 }

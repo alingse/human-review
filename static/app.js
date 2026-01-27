@@ -86,8 +86,62 @@ class ReviewApp {
     }
 
     async init() {
+        this.initTheme();
         this.bindEvents();
         await this.loadData();
+    }
+
+    initTheme() {
+        const saved = localStorage.getItem('hrevu-theme') || 'dark';
+        this.setTheme(saved);
+
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            this.setTheme(current === 'dark' ? 'light' : 'dark');
+        });
+    }
+
+    setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('hrevu-theme', theme);
+
+        // Update icon
+        const icon = document.getElementById('theme-icon');
+        icon.textContent = theme === 'dark' ? '🌙' : '☀️';
+
+        // Update highlight.js theme
+        const hlTheme = document.getElementById('highlight-theme');
+        hlTheme.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-${theme}.min.css`;
+
+        // Re-render current file with new theme
+        if (this.currentFile) {
+            this.renderDiff(this.currentFile);
+        }
+    }
+
+    detectLanguage(filePath) {
+        const ext = filePath.split('.').pop().toLowerCase();
+        const langMap = {
+            'js': 'javascript', 'ts': 'typescript', 'jsx': 'javascript', 'tsx': 'typescript',
+            'py': 'python', 'rs': 'rust', 'go': 'go', 'java': 'java', 'c': 'c',
+            'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'h': 'c', 'hpp': 'cpp', 'hxx': 'cpp',
+            'cs': 'csharp', 'php': 'php', 'rb': 'ruby', 'kt': 'kotlin', 'swift': 'swift',
+            'sh': 'bash', 'bash': 'bash', 'zsh': 'bash', 'fish': 'bash',
+            'yaml': 'yaml', 'yml': 'yaml', 'json': 'json', 'toml': 'toml',
+            'md': 'markdown', 'html': 'html', 'htm': 'html', 'xml': 'xml',
+            'css': 'css', 'scss': 'scss', 'less': 'less',
+            'sql': 'sql', 'dockerfile': 'dockerfile', 'Dokerfile': 'dockerfile'
+        };
+        return langMap[ext] || 'plaintext';
+    }
+
+    highlightCode(code, filePath) {
+        try {
+            const lang = this.detectLanguage(filePath);
+            return hljs.highlight(code, { language: lang }).value;
+        } catch (e) {
+            return this.escapeHtml(code);
+        }
     }
 
     bindEvents() {
@@ -249,7 +303,7 @@ class ReviewApp {
                      data-file="${this.escapeHtml(filePath)}"
                      data-line="${line.number}">
                     <span class="diff-line-number">${line.number > 0 ? line.number : ''}</span>
-                    <span class="diff-line-content">${this.escapeHtml(line.content)}</span>
+                    <span class="diff-line-content"><code>${this.highlightCode(line.content, filePath)}</code></span>
                     ${hasComments ? `<span class="comment-marker">${commentsByLine[line.number].length}</span>` : ''}
                 </div>
             `;

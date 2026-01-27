@@ -1,8 +1,8 @@
 [package]
 name = "human-review"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-description = "Human review CLI tool"
+description = "Human review CLI tool for AI"
 license = "MIT"
 
 [[bin]]

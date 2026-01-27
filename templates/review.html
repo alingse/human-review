@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>hrevu - Code Review</title>
     <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="highlight-theme">
 </head>
 <body>
     <div id="app">
@@ -14,6 +15,9 @@
                 <span class="title" id="review-title">Loading...</span>
             </div>
             <div class="header-right">
+                <button class="btn btn-sm" id="theme-toggle" title="Toggle theme">
+                    <span id="theme-icon">🌙</span>
+                </button>
                 <button class="btn btn-primary" id="complete-btn" data-i18n="completeReview">Complete Review</button>
             </div>
         </header>
@@ -70,6 +74,7 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="/static/app.js"></script>
     <script>
         // Apply translations to static elements

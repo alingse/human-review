@@ -14,6 +14,22 @@
     --line-hover: rgba(177, 186, 196, 0.12);
 }
 
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eaeef2;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --border-color: #d0d7de;
+    --accent-color: #0969da;
+    --success-color: #1a7f37;
+    --danger-color: #cf222e;
+    --warning-color: #9a6700;
+    --added-bg: rgba(46, 160, 67, 0.15);
+    --removed-bg: rgba(248, 81, 73, 0.15);
+    --line-hover: rgba(0, 0, 0, 0.04);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -267,6 +283,13 @@ body {
     flex: 1;
     white-space: pre;
     word-break: break-all;
+}
+
+.diff-line-content code {
+    font-family: inherit;
+    font-size: inherit;
+    background: transparent;
+    padding: 0;
 }
 
 .diff-line.added {
