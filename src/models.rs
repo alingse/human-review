@@ -29,6 +29,16 @@ pub enum InputType {
     WorkingTreeDiff,
 }
 
+impl InputType {
+    pub fn display_title(&self) -> String {
+        match self {
+            InputType::CommitDiff { commit } => format!("Commit: {}", commit),
+            InputType::FileContent { path } => format!("File: {}", path),
+            InputType::WorkingTreeDiff => "Current Changes".to_string(),
+        }
+    }
+}
+
 /// 评论
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Comment {
@@ -70,9 +80,7 @@ pub enum ReviewStatus {
 /// API 响应 - 初始数据
 #[derive(Debug, Serialize)]
 pub struct DataResponse {
-    #[serde(rename = "type")]
-    pub type_: String,
-    pub title: String,
+    pub input_type: InputType,
     pub files: Vec<FileData>,
     pub comments: Vec<Comment>,
 }

@@ -25,9 +25,13 @@ const i18n = {
         reviewComplete: (count) => `审查完成！共 ${count} 条评论`,
         globalCommentLabel: '全局评论',
         line: '行',
-        currentChanges: '当前更改',
-        commitChanges: '提交更改',
-        fileContent: '文件内容',
+        prefix: {
+            commit: '提交',
+            file: '文件',
+        },
+        typeLabel: {
+            working_tree_diff: '当前更改',
+        },
     },
     en: {
         files: 'Files',
@@ -54,23 +58,25 @@ const i18n = {
         reviewComplete: (count) => `Review complete! ${count} comment${count !== 1 ? 's' : ''}`,
         globalCommentLabel: 'Global comment',
         line: 'Line',
-        currentChanges: 'Current Changes',
-        commitChanges: 'Commit Changes',
-        fileContent: 'File Content',
+        prefix: {
+            commit: 'Commit',
+            file: 'File',
+        },
+        typeLabel: {
+            working_tree_diff: 'Current Changes',
+        },
     }
 };
 
-// Detect user language
-function detectLanguage() {
+// Detect and cache user language
+const CURRENT_LANG = (function() {
     const lang = navigator.language || navigator.userLanguage;
-    if (lang.startsWith('zh')) return 'zh';
-    return 'en';
-}
+    return lang.startsWith('zh') ? 'zh' : 'en';
+})();
 
 // Get translation
 function t(key, ...args) {
-    const lang = detectLanguage();
-    const dict = i18n[lang] || i18n.en;
+    const dict = i18n[CURRENT_LANG] || i18n.en;
     const value = dict[key];
     if (typeof value === 'function') {
         return value(...args);
@@ -78,15 +84,29 @@ function t(key, ...args) {
     return value || key;
 }
 
-// Translate review title
-function translateTitle(title) {
-    const lang = detectLanguage();
-    if (lang === 'zh') {
-        if (title === 'Current Changes') return '当前更改';
-        if (title.startsWith('Commit:')) return title.replace('Commit:', '提交：');
-        if (title.startsWith('File:')) return title.replace('File:', '文件：');
+// Generate review title from input type
+function generateTitle(inputType) {
+    const dict = i18n[CURRENT_LANG] || i18n.en;
+    const type_ = inputType.type;
+
+    // For working_tree_diff, return label directly
+    if (type_ === 'working_tree_diff') {
+        return dict.typeLabel.working_tree_diff;
     }
-    return title;
+
+    // For commit_diff and file_content, use prefix + value
+    let prefix, value;
+    if (type_ === 'commit_diff') {
+        prefix = dict.prefix.commit;
+        value = inputType.commit;
+    } else if (type_ === 'file_content') {
+        prefix = dict.prefix.file;
+        value = inputType.path;
+    } else {
+        return 'Unknown';
+    }
+
+    return `${prefix}: ${value}`;
 }
 
 // hrevu Review Application
@@ -203,7 +223,7 @@ class ReviewApp {
             const response = await fetch('/api/data');
             this.data = await response.json();
 
-            document.getElementById('review-title').textContent = translateTitle(this.data.title);
+            document.getElementById('review-title').textContent = generateTitle(this.data.input_type);
             this.files = this.data.files;
             this.comments = this.data.comments;
 

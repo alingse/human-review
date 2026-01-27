@@ -34,11 +34,7 @@ async fn main() -> Result<()> {
     info!("Parsed input: {:?}", input);
 
     // 创建数据
-    let input_str = match &input {
-        crate::models::InputType::CommitDiff { commit } => format!("Commit: {}", commit),
-        crate::models::InputType::FileContent { path } => format!("File: {}", path),
-        crate::models::InputType::WorkingTreeDiff => "Current Changes".to_string(),
-    };
+    let input_str = input.display_title();
 
     let data = crate::models::ReviewData {
         input_type: input.clone(),

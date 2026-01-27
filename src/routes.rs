@@ -24,12 +24,7 @@ pub async fn get_data_handler(
     };
 
     let response = DataResponse {
-        type_: match &data.input_type {
-            InputType::CommitDiff { .. } => "commit_diff".to_string(),
-            InputType::FileContent { .. } => "file_content".to_string(),
-            InputType::WorkingTreeDiff => "working_tree_diff".to_string(),
-        },
-        title: data.input.clone(),
+        input_type: data.input_type.clone(),
         files,
         comments: data.comments.clone(),
     };
