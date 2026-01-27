@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>hrevu - Code Review</title>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="header-left">
+                <a href="https://github.com/alingse/human-review" class="logo" target="_blank">hrevu</a>
+                <span class="title" id="review-title">Loading...</span>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-primary" id="complete-btn" data-i18n="completeReview">Complete Review</button>
+            </div>
+        </header>
+
+        <main class="main">
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2 data-i18n="files">Files</h2>
+                    <span class="file-count" id="file-count">0</span>
+                </div>
+                <div class="file-list" id="file-list">
+                    <!-- Files will be rendered here -->
+                </div>
+            </aside>
+
+            <section class="content">
+                <div class="content-header">
+                    <h2 id="current-file-name" data-i18n="selectFile">Select a file</h2>
+                    <button class="btn btn-sm" id="add-global-comment-btn" data-i18n="addGlobalComment">+ Global Comment</button>
+                </div>
+                <div class="diff-view" id="diff-view">
+                    <!-- Diff content will be rendered here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Comment Modal -->
+    <div class="modal" id="comment-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 data-i18n="addComment">Add Comment</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="comment-info" id="comment-info"></div>
+                <textarea id="comment-text" rows="5" data-i18n-placeholder="enterComment" placeholder="Enter your comment..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel" data-i18n="cancel">Cancel</button>
+                <button class="btn btn-primary" id="modal-submit" data-i18n="addComment">Add Comment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comments Sidebar -->
+    <div class="comments-sidebar" id="comments-sidebar">
+        <div class="comments-sidebar-header">
+            <h3 data-i18n="comments">Comments</h3>
+            <button class="comments-sidebar-close" id="comments-close">&times;</button>
+        </div>
+        <div class="comments-list" id="comments-list">
+            <!-- Comments will be rendered here -->
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        // Apply translations to static elements
+        document.addEventListener('DOMContentLoaded', function() {
+            const translations = {
+                zh: {
+                    completeReview: '完成审查',
+                    files: '文件',
+                    selectFile: '选择文件',
+                    addGlobalComment: '+ 全局评论',
+                    addComment: '添加评论',
+                    updateComment: '更新评论',
+                    cancel: '取消',
+                    comments: '评论',
+                    enterComment: '输入你的评论...',
+                },
+                en: {
+                    completeReview: 'Complete Review',
+                    files: 'Files',
+                    selectFile: 'Select a file',
+                    addGlobalComment: '+ Global Comment',
+                    addComment: 'Add Comment',
+                    updateComment: 'Update Comment',
+                    cancel: 'Cancel',
+                    comments: 'Comments',
+                    enterComment: 'Enter your comment...',
+                }
+            };
+
+            const lang = (navigator.language || navigator.userLanguage).startsWith('zh') ? 'zh' : 'en';
+            const dict = translations[lang] || translations.en;
+
+            // Translate text content
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) {
+                    el.textContent = dict[key];
+                }
+            });
+
+            // Translate placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (dict[key]) {
+                    el.setAttribute('placeholder', dict[key]);
+                }
+            });
+
+            // Update HTML lang attribute
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+        });
+    </script>
+</body>
+</html>
