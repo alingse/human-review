@@ -1,6 +1,6 @@
 [package]
 name = "human-review"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 description = "Human review CLI tool for AI"
 license = "MIT"
