@@ -3,7 +3,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "hrevu")]
 #[command(author = "hrevu")]
-#[command(version = "0.1.3")]
+#[command(version = "0.1.4")]
 #[command(about = "Human review CLI tool for AI", long_about = None)]
 pub struct Args {
     /// Input: commit hash, file path, or "diff"
