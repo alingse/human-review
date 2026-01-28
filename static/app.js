@@ -216,6 +216,24 @@ class ReviewApp {
                 this.closeModal();
             }
         });
+
+        // Event delegation for edit/delete buttons in diff view
+        document.getElementById('diff-view').addEventListener('click', (e) => {
+            if (e.target.matches('.btn-edit')) {
+                this.editComment(e.target.dataset.id);
+            } else if (e.target.matches('.btn-delete')) {
+                this.deleteComment(e.target.dataset.id);
+            }
+        });
+
+        // Event delegation for edit/delete buttons in comments sidebar
+        document.getElementById('comments-list').addEventListener('click', (e) => {
+            if (e.target.matches('.btn-edit')) {
+                this.editComment(e.target.dataset.id);
+            } else if (e.target.matches('.btn-delete')) {
+                this.deleteComment(e.target.dataset.id);
+            }
+        });
     }
 
     async loadData() {
@@ -418,32 +436,6 @@ class ReviewApp {
                 </div>
             `;
         }).join('');
-
-        // Add action handlers
-        commentsList.querySelectorAll('.btn-edit').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.editComment(btn.dataset.id);
-            });
-        });
-
-        commentsList.querySelectorAll('.btn-delete').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.deleteComment(btn.dataset.id);
-            });
-        });
-
-        // Also add handlers to inline comments
-        document.querySelectorAll('.inline-comment .btn-edit').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.editComment(btn.dataset.id);
-            });
-        });
-
-        document.querySelectorAll('.inline-comment .btn-delete').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.deleteComment(btn.dataset.id);
-            });
-        });
     }
 
     openCommentModal(file, line) {
