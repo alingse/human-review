@@ -1,7 +1,7 @@
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
-#[folder = "templates/"]
+#[folder = "static/templates/"]
 struct Templates;
 
 #[derive(RustEmbed)]
