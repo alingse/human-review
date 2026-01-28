@@ -4,6 +4,7 @@ use colored::Colorize;
 use tracing::{info, warn};
 use chrono::Utc;
 use std::collections::HashMap;
+use std::process::Command;
 
 mod cli;
 mod server;
@@ -16,6 +17,33 @@ mod static_assets;
 use cli::Args;
 use git_ops::{parse_input, extract_file_lines};
 use output::{print_summary, print_json};
+
+/// Detect if running under WSL
+fn is_wsl() -> bool {
+    std::fs::read_to_string("/proc/version")
+        .map(|v| v.contains("Microsoft") || v.contains("WSL"))
+        .unwrap_or(false)
+}
+
+/// Open browser in a cross-platform way
+fn open_browser(url: &str) -> Result<()> {
+    if is_wsl() {
+        info!("WSL detected, using Windows browser");
+        let mut cmd = Command::new("cmd.exe");
+        cmd.args(["/c", "start", "", url]);
+
+        // Set current_dir to avoid UNC path errors
+        let system32 = std::path::Path::new("/mnt/c/Windows/System32");
+        if system32.exists() {
+            cmd.current_dir(system32);
+        }
+
+        cmd.spawn()?;
+    } else {
+        open::that(url)?;
+    }
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -51,7 +79,7 @@ async fn main() -> Result<()> {
     println!("  Server: {}", url.dimmed());
     println!();
 
-    if let Err(e) = open::that(&url) {
+    if let Err(e) = open_browser(&url) {
         warn!("Failed to open browser: {}", e);
         println!("  {}", format!("Please open {} in your browser", url).yellow());
     } else {
