@@ -53,3 +53,7 @@ colored = "2.1"
 
 # Static assets embedding
 rust-embed = "8.5"
+
+[[example]]
+name = "test_untracked_full"
+path = "examples/test_untracked_full.rs"

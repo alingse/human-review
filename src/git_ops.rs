@@ -3,6 +3,8 @@ use git2::{Repository, Diff, Delta};
 use std::path::Path;
 use std::fs;
 use std::cell::RefCell;
+use std::io::Write;
+use std::env;
 
 use crate::models::{InputType, FileData, LineData};
 
@@ -56,8 +58,11 @@ fn create_diff_options() -> git2::DiffOptions {
 
 /// Get working tree diff (including staged and unstaged changes)
 pub fn get_working_tree_diff() -> Result<Vec<FileData>> {
+    println!("DEBUG get_working_tree_diff: start");
+    std::io::stdout().flush().ok();
     let repo = Repository::discover(".")?;
     let head_tree = get_head_tree(&repo)?;
+    println!("DEBUG get_working_tree_diff: head_tree.is_some() = {}", head_tree.is_some());
 
     let result = match head_tree {
         Some(tree) => get_diff_with_head(&repo, &tree)?,
@@ -65,6 +70,10 @@ pub fn get_working_tree_diff() -> Result<Vec<FileData>> {
     };
 
     let mut files: Vec<FileData> = result;
+    println!("DEBUG get_working_tree_diff: result len = {}", files.len());
+    for file in &files {
+        println!("DEBUG get_working_tree_diff: file={}, status={}, lines={}", file.path, file.status, file.lines.len());
+    }
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
 }
@@ -82,15 +91,74 @@ fn get_head_tree(repo: &Repository) -> Result<Option<git2::Tree<'_>>> {
 
 /// Get diff when HEAD exists (merge staged and unstaged changes)
 fn get_diff_with_head(repo: &Repository, tree: &git2::Tree) -> Result<Vec<FileData>> {
+    println!("DEBUG get_diff_with_head: tree exists");
     let mut workdir_opts = create_diff_options();
+    workdir_opts.include_untracked(true);
     workdir_opts.recurse_untracked_dirs(true);
 
     let mut cached_opts = create_diff_options();
 
     let cached_diff = repo.diff_tree_to_index(Some(tree), None, Some(&mut cached_opts))?;
     let workdir_diff = repo.diff_index_to_workdir(None, Some(&mut workdir_opts))?;
+    println!("DEBUG: cached_diff.deltas() = {}, workdir_diff.deltas() = {}", cached_diff.deltas().count(), workdir_diff.deltas().count());
+    for delta in workdir_diff.deltas() {
+        let status = delta.status();
+        let path = delta.new_file().path().and_then(|p| p.to_str()).unwrap_or("");
+        println!("DEBUG workdir delta: status={:?}, path={}", status, path);
+    }
 
-    merge_diffs(cached_diff, workdir_diff)
+    let mut files = merge_diffs(cached_diff, workdir_diff)?;
+
+    println!("DEBUG: After merge_diffs: {} files", files.len());
+    for file in &files {
+        println!("DEBUG: file={}, status={}, lines={}", file.path, file.status, file.lines.len());
+    }
+
+    // For untracked files (which have no diff lines), read full content
+    for file in &mut files {
+        if file.lines.is_empty() && file.status != "deleted" {
+            println!("DEBUG: Reading full content for: {}", file.path);
+
+            // Build full path - try repo workdir first, fall back to current directory
+            let full_path = match repo.workdir() {
+                Some(workdir) => {
+                    println!("DEBUG: Using repo workdir: {:?}", workdir);
+                    workdir.join(&file.path)
+                }
+                None => {
+                    println!("DEBUG: No repo workdir, trying current directory");
+                    match env::current_dir() {
+                        Ok(current) => {
+                            println!("DEBUG: Current dir: {:?}", current);
+                            current.join(&file.path)
+                        }
+                        Err(e) => {
+                            println!("DEBUG: Failed to get current dir: {}, using '.'", e);
+                            Path::new(".").join(&file.path)
+                        }
+                    }
+                }
+            };
+
+            println!("DEBUG: Full path: {:?}", full_path);
+
+            match fs::read_to_string(&full_path) {
+                Ok(content) => {
+                    file.lines = enumerate_file_lines(&content, Some("added"));
+                    file.status = "added".to_string();
+                    println!("DEBUG: Read {} lines for {}", file.lines.len(), file.path);
+                }
+                Err(e) => {
+                    println!("DEBUG: Failed to read {:?}: {}", full_path, e);
+                    // Keep the file entry but mark as unreadable
+                    file.status = "added".to_string();
+                }
+            }
+        }
+    }
+
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
 }
 
 /// Merge two diffs into a single FileData vector

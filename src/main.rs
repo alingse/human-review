@@ -16,6 +16,7 @@ mod static_assets;
 use cli::Args;
 use git_ops::{parse_input, extract_file_lines};
 use output::{print_summary, print_json};
+use crate::models::InputType;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -29,6 +30,24 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let input = parse_input(&args.input)?;
     info!("Parsed input: {:?}", input);
+
+    // Debug: test get_working_tree_diff immediately
+    eprintln!("DEBUG: input type = {:?}", input);
+    if let InputType::WorkingTreeDiff = &input {
+        eprintln!("=== DEBUG MODE: Testing get_working_tree_diff ===");
+        match git_ops::get_working_tree_diff() {
+            Ok(files) => {
+                eprintln!("DEBUG: Found {} files", files.len());
+                for file in &files {
+                    eprintln!("DEBUG: {} (status={}, lines={})", file.path, file.status, file.lines.len());
+                }
+            }
+            Err(e) => {
+                eprintln!("DEBUG: Error getting diff: {}", e);
+            }
+        }
+        eprintln!("=== END DEBUG ===");
+    }
 
     let input_str = input.display_title();
 
@@ -80,6 +99,7 @@ async fn main() -> Result<()> {
                 .unwrap_or_default()
         }
         crate::models::InputType::WorkingTreeDiff => {
+            println!("DEBUG main: calling get_working_tree_diff");
             git_ops::get_working_tree_diff()
                 .map(extract_file_lines)
                 .unwrap_or_default()
