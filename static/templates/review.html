@@ -46,18 +46,25 @@
         </main>
     </div>
 
-    <!-- Comment Modal -->
-    <div class="modal" id="comment-modal">
-        <div class="modal-content">
+    <!-- Inline Comment Composer -->
+    <div class="modal" id="comment-modal" aria-hidden="true">
+        <span class="comment-composer-anchor" id="comment-composer-anchor" aria-hidden="true"></span>
+        <div class="modal-content" id="comment-modal-content" role="dialog" aria-modal="false" aria-labelledby="comment-modal-title">
             <div class="modal-header">
-                <h3 data-i18n="addComment">Add Comment</h3>
-                <button class="modal-close" id="modal-close">&times;</button>
+                <div class="modal-header-title">
+                    <span class="comment-origin-mark" aria-hidden="true"></span>
+                    <div class="comment-heading-copy">
+                        <h3 id="comment-modal-title" data-i18n="addComment">Add Comment</h3>
+                        <div class="comment-info" id="comment-info"></div>
+                    </div>
+                </div>
+                <button class="modal-close" id="modal-close" data-i18n-aria-label="closeComment" aria-label="Close comment composer">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="comment-info" id="comment-info"></div>
-                <textarea id="comment-text" rows="5" data-i18n-placeholder="enterComment" placeholder="Enter your comment..."></textarea>
+                <textarea id="comment-text" rows="4" data-i18n-placeholder="enterComment" placeholder="Enter your comment..."></textarea>
             </div>
             <div class="modal-footer">
+                <span class="comment-submit-hint" id="comment-submit-hint">Enter send · Shift Enter new line</span>
                 <button class="btn btn-secondary" id="modal-cancel" data-i18n="cancel">Cancel</button>
                 <button class="btn btn-primary" id="modal-submit" data-i18n="addComment">Add Comment</button>
             </div>
@@ -88,6 +95,7 @@
                     addGlobalComment: '+ 全局评论',
                     addComment: '添加评论',
                     updateComment: '更新评论',
+                    closeComment: '关闭评论输入器',
                     cancel: '取消',
                     comments: '评论',
                     enterComment: '输入你的评论...',
@@ -99,6 +107,7 @@
                     addGlobalComment: '+ Global Comment',
                     addComment: 'Add Comment',
                     updateComment: 'Update Comment',
+                    closeComment: 'Close comment composer',
                     cancel: 'Cancel',
                     comments: 'Comments',
                     enterComment: 'Enter your comment...',
@@ -121,6 +130,14 @@
                 const key = el.getAttribute('data-i18n-placeholder');
                 if (dict[key]) {
                     el.setAttribute('placeholder', dict[key]);
+                }
+            });
+
+            // Translate accessible labels
+            document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+                const key = el.getAttribute('data-i18n-aria-label');
+                if (dict[key]) {
+                    el.setAttribute('aria-label', dict[key]);
                 }
             });
 

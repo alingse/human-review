@@ -33,10 +33,10 @@ Or use natural language - your AI will understand:
 
 ## Features
 
-- **Browser-based review** - Full-featured web interface with dark theme
-- **Line-level commenting** - Add precise feedback on specific lines
+- **Browser-based review** - Light-first web interface with optional dark mode
+- **Line-and-column commenting** - Anchor precise feedback to the exact code position
 - **Multiple input modes** - Review commits, diffs, or any file
-- **AI workflow integration** - Clean terminal output for AI to process
+- **AI workflow integration** - Structured review context for applying actionable feedback
 - **Bilingual** - Auto-detects Chinese/English based on browser locale
 
 ## License

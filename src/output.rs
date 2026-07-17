@@ -1,5 +1,5 @@
-use colored::Colorize;
 use crate::models::ReviewData;
+use colored::Colorize;
 use std::collections::HashMap;
 
 /// Print JSON formatted output
@@ -35,7 +35,10 @@ pub fn print_summary(data: &ReviewData, file_contents: &HashMap<String, Vec<Stri
     let mut by_file: std::collections::HashMap<Option<String>, Vec<&crate::models::Comment>> =
         std::collections::HashMap::new();
     for comment in &data.comments {
-        by_file.entry(comment.file.clone()).or_default().push(comment);
+        by_file
+            .entry(comment.file.clone())
+            .or_default()
+            .push(comment);
     }
 
     for (file, comments) in by_file.iter() {
@@ -50,7 +53,11 @@ pub fn print_summary(data: &ReviewData, file_contents: &HashMap<String, Vec<Stri
             print!("💬 ");
 
             if let Some(line) = comment.line {
-                print!("{} {}: ", "Line".yellow(), line.to_string().yellow());
+                print!("{} {}", "Line".yellow(), line.to_string().yellow());
+                if let Some(column) = comment.column {
+                    print!(", {} {}", "Column".yellow(), column.to_string().yellow());
+                }
+                print!(": ");
             }
 
             println!("{}", comment.text);

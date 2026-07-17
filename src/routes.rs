@@ -6,9 +6,9 @@ use axum::{
 };
 use tracing::info;
 
+use crate::git_ops;
 use crate::models::*;
 use crate::server::{AppState, COMPLETION_SIGNAL, FINAL_DATA};
-use crate::git_ops;
 
 /// Get initial data
 pub async fn get_data_handler(
@@ -38,7 +38,7 @@ pub async fn add_comment_handler(
 ) -> Result<Json<Comment>, AppError> {
     let mut data = state.data.write().await;
 
-    let comment = Comment::new(req.file, req.line, req.text);
+    let comment = Comment::new(req.file, req.line, req.column, req.text);
     data.comments.push(comment.clone());
 
     info!("Added comment: {}", comment.id);

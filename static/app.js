@@ -8,6 +8,9 @@ const i18n = {
         addGlobalComment: '+ 全局评论',
         addComment: '添加评论',
         updateComment: '更新评论',
+        closeComment: '关闭评论输入器',
+        submitHint: 'Enter 发送 · Shift Enter 换行',
+        you: '你',
         edit: '编辑',
         delete: '删除',
         completeReview: '完成审查',
@@ -41,6 +44,9 @@ const i18n = {
         addGlobalComment: '+ Global Comment',
         addComment: 'Add Comment',
         updateComment: 'Update Comment',
+        closeComment: 'Close comment composer',
+        submitHint: 'Enter send · Shift Enter new line',
+        you: 'You',
         edit: 'Edit',
         delete: 'Delete',
         completeReview: 'Complete Review',
@@ -118,6 +124,9 @@ class ReviewApp {
         this.currentFile = null;
         this.pendingComment = null;
         this.editingComment = null;
+        this.commentAnchor = null;
+        this.composerPositionFrame = null;
+        this.measureCanvas = null;
 
         this.init();
     }
@@ -129,7 +138,7 @@ class ReviewApp {
     }
 
     initTheme() {
-        const saved = localStorage.getItem('hrevu-theme') || 'dark';
+        const saved = localStorage.getItem('hrevu-theme') || 'light';
         this.setTheme(saved);
 
         document.getElementById('theme-toggle').addEventListener('click', () => {
@@ -192,22 +201,39 @@ class ReviewApp {
         document.getElementById('modal-close').addEventListener('click', () => this.closeModal());
         document.getElementById('modal-cancel').addEventListener('click', () => this.closeModal());
         document.getElementById('modal-submit').addEventListener('click', () => this.submitComment());
+        document.getElementById('comment-text').addEventListener('input', () => {
+            this.resizeCommentTextarea();
+        });
+        document.getElementById('comment-text').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+                e.preventDefault();
+                this.submitComment();
+            }
+        });
+
+        document.addEventListener('pointerdown', (e) => {
+            const modal = document.getElementById('comment-modal');
+            const content = document.getElementById('comment-modal-content');
+            if (modal.classList.contains('active') && !content.contains(e.target)) {
+                this.closeModal();
+            }
+        }, true);
+        window.addEventListener('resize', () => {
+            this.scheduleCommentComposerPosition();
+            this.positionInlineComments(document.getElementById('diff-view'));
+        });
+        document.getElementById('diff-view').addEventListener('scroll', () => {
+            this.scheduleCommentComposerPosition();
+        }, { passive: true });
 
         // Global comment
-        document.getElementById('add-global-comment-btn').addEventListener('click', () => {
-            this.openCommentModal(null, null);
+        document.getElementById('add-global-comment-btn').addEventListener('click', (e) => {
+            this.openCommentModal(null, null, this.createElementAnchor(e.currentTarget));
         });
 
         // Comments sidebar
         document.getElementById('comments-close').addEventListener('click', () => {
             document.getElementById('comments-sidebar').classList.remove('active');
-        });
-
-        // Close modal on backdrop click
-        document.getElementById('comment-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'comment-modal') {
-                this.closeModal();
-            }
         });
 
         // Keyboard shortcuts
@@ -220,7 +246,7 @@ class ReviewApp {
         // Event delegation for edit/delete buttons in diff view
         document.getElementById('diff-view').addEventListener('click', (e) => {
             if (e.target.matches('.btn-edit')) {
-                this.editComment(e.target.dataset.id);
+                this.editComment(e.target.dataset.id, e.target);
             } else if (e.target.matches('.btn-delete')) {
                 this.deleteComment(e.target.dataset.id);
             }
@@ -229,7 +255,7 @@ class ReviewApp {
         // Event delegation for edit/delete buttons in comments sidebar
         document.getElementById('comments-list').addEventListener('click', (e) => {
             if (e.target.matches('.btn-edit')) {
-                this.editComment(e.target.dataset.id);
+                this.editComment(e.target.dataset.id, e.target);
             } else if (e.target.matches('.btn-delete')) {
                 this.deleteComment(e.target.dataset.id);
             }
@@ -368,7 +394,7 @@ class ReviewApp {
 
             // Render inline comments
             if (hasComments) {
-                html += '<div class="inline-comments">';
+                html += `<div class="inline-comments" data-line="${line.number}">`;
                 for (const comment of commentsByLine[line.number]) {
                     html += this.renderInlineComment(comment);
                 }
@@ -381,31 +407,70 @@ class ReviewApp {
 
         // Add click handlers to lines
         diffView.querySelectorAll('.diff-line').forEach(lineEl => {
-            lineEl.addEventListener('click', () => {
+            lineEl.addEventListener('click', (event) => {
                 const file = lineEl.dataset.file;
                 const lineNum = parseInt(lineEl.dataset.line);
                 if (lineNum > 0) {
-                    this.openCommentModal(file, lineNum);
+                    const anchor = this.createLineAnchor(event, lineEl);
+                    this.openCommentModal(file, lineNum, anchor);
                 }
             });
         });
+
+        this.positionInlineComments(diffView);
     }
 
     renderInlineComment(comment) {
         const time = new Date(comment.created_at).toLocaleTimeString();
         return `
-            <div class="inline-comment" data-id="${comment.id}">
+            <div class="inline-comment" data-id="${comment.id}"${comment.column ? ` data-column="${comment.column}"` : ''}>
                 <div class="inline-comment-header">
-                    <span class="inline-comment-author">You</span>
-                    <span class="inline-comment-time">${time}</span>
+                    <div class="inline-comment-meta">
+                        <span class="inline-comment-avatar" aria-hidden="true">🤔</span>
+                        <span class="inline-comment-author">${t('you')}</span>
+                        <span class="inline-comment-time">${time}</span>
+                    </div>
+                    <div class="inline-comment-actions">
+                        <button type="button" class="inline-comment-action btn-edit" data-id="${comment.id}">${t('edit')}</button>
+                        <button type="button" class="inline-comment-action inline-comment-action-danger btn-delete" data-id="${comment.id}">${t('delete')}</button>
+                    </div>
                 </div>
                 <div class="inline-comment-text">${this.escapeHtml(comment.text)}</div>
-                <div class="inline-comment-actions">
-                    <button class="btn-edit" data-id="${comment.id}">${t('edit')}</button>
-                    <button class="btn-delete" data-id="${comment.id}">${t('delete')}</button>
-                </div>
             </div>
         `;
+    }
+
+    positionInlineComments(diffView) {
+        diffView.querySelectorAll('.inline-comments').forEach(group => {
+            const line = diffView.querySelector(`.diff-line[data-line="${group.dataset.line}"]`);
+            const content = line && line.querySelector('.diff-line-content');
+            if (!content) return;
+
+            const groupRect = group.getBoundingClientRect();
+            const contentRect = content.getBoundingClientRect();
+            const contentStart = Math.max(0, contentRect.left - groupRect.left);
+            const availableWidth = group.clientWidth;
+            const cardWidth = Math.max(0, Math.min(460, availableWidth - contentStart));
+            const maxLeft = Math.max(contentStart, availableWidth - cardWidth);
+
+            group.querySelectorAll('.inline-comment').forEach(card => {
+                const column = Number.parseInt(card.dataset.column, 10);
+                const anchorViewportX = Number.isFinite(column)
+                    ? this.getColumnX(content, column)
+                    : contentRect.left;
+                const anchorX = this.clamp(
+                    anchorViewportX - groupRect.left,
+                    contentStart,
+                    availableWidth
+                );
+                const left = this.clamp(anchorX - 14, contentStart, maxLeft);
+                const cardAnchorX = this.clamp(anchorX - left, 12, Math.max(12, cardWidth - 12));
+
+                card.style.setProperty('--comment-card-left', `${Math.round(left)}px`);
+                card.style.setProperty('--comment-card-width', `${Math.round(cardWidth)}px`);
+                card.style.setProperty('--comment-card-anchor-x', `${Math.round(cardAnchorX)}px`);
+            });
+        });
     }
 
     renderComments() {
@@ -419,7 +484,7 @@ class ReviewApp {
         commentsList.innerHTML = this.comments.map(comment => {
             const time = new Date(comment.created_at).toLocaleString();
             const location = comment.file
-                ? `${comment.file}${comment.line ? ':' + comment.line : ''}`
+                ? `${comment.file}${comment.line ? `:L${comment.line}` : ''}${comment.column ? `:C${comment.column}` : ''}`
                 : t('globalCommentLabel');
 
             return `
@@ -438,48 +503,296 @@ class ReviewApp {
         }).join('');
     }
 
-    openCommentModal(file, line) {
-        this.pendingComment = { file, line };
+    openCommentModal(file, line, anchor = null) {
+        this.commentAnchor = anchor || this.createViewportAnchor();
+        this.pendingComment = { file, line, column: this.commentAnchor.column || null };
         this.editingComment = null;
 
+        this.updateCommentComposerInfo(file, line, this.commentAnchor.column);
+        document.getElementById('comment-modal-title').textContent = t('addComment');
+        document.getElementById('modal-submit').textContent = t('addComment');
+        this.showCommentComposer('');
+    }
+
+    openEditModal(comment, anchor = null) {
+        this.editingComment = comment;
+        this.pendingComment = { file: comment.file, line: comment.line, column: comment.column || null };
+        this.commentAnchor = this.createStoredCommentAnchor(comment) || anchor || this.createViewportAnchor();
+
+        this.updateCommentComposerInfo(comment.file, comment.line, comment.column);
+        document.getElementById('comment-modal-title').textContent = t('updateComment');
+        document.getElementById('modal-submit').textContent = t('updateComment');
+        this.showCommentComposer(comment.text);
+    }
+
+    closeModal() {
+        const modal = document.getElementById('comment-modal');
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        document.getElementById('comment-modal-content').removeAttribute('data-placement');
+        if (this.composerPositionFrame !== null) {
+            cancelAnimationFrame(this.composerPositionFrame);
+            this.composerPositionFrame = null;
+        }
+        this.pendingComment = null;
+        this.editingComment = null;
+        this.commentAnchor = null;
+    }
+
+    showCommentComposer(text) {
+        const modal = document.getElementById('comment-modal');
+        const textarea = document.getElementById('comment-text');
+        textarea.value = text;
+        textarea.style.height = '';
+        document.getElementById('comment-submit-hint').textContent = t('submitHint');
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        this.resizeCommentTextarea();
+        this.scheduleCommentComposerPosition();
+        textarea.focus();
+    }
+
+    updateCommentComposerInfo(file, line, column) {
         const info = document.getElementById('comment-info');
         if (file && line) {
-            info.textContent = `${file}:${line}`;
+            info.textContent = `${file} · L${line}${column ? `:C${column}` : ''}`;
         } else if (file) {
             info.textContent = file;
         } else {
             info.textContent = t('globalCommentLabel');
         }
-
-        document.getElementById('comment-text').value = '';
-        document.getElementById('modal-submit').textContent = t('addComment');
-        document.getElementById('comment-modal').classList.add('active');
-        document.getElementById('comment-text').focus();
+        info.title = info.textContent;
     }
 
-    openEditModal(comment) {
-        this.editingComment = comment;
-        this.pendingComment = { file: comment.file, line: comment.line };
+    resizeCommentTextarea() {
+        const textarea = document.getElementById('comment-text');
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 82), 220)}px`;
+        this.scheduleCommentComposerPosition();
+    }
 
-        const info = document.getElementById('comment-info');
-        if (comment.file && comment.line) {
-            info.textContent = `${comment.file}:${comment.line}`;
-        } else if (comment.file) {
-            info.textContent = comment.file;
-        } else {
-            info.textContent = t('globalCommentLabel');
+    scheduleCommentComposerPosition() {
+        if (!document.getElementById('comment-modal').classList.contains('active')) {
+            return;
+        }
+        if (this.composerPositionFrame !== null) {
+            cancelAnimationFrame(this.composerPositionFrame);
+        }
+        this.composerPositionFrame = requestAnimationFrame(() => {
+            this.composerPositionFrame = null;
+            this.positionCommentComposer();
+        });
+    }
+
+    positionCommentComposer() {
+        if (!this.commentAnchor) return;
+
+        const modal = document.getElementById('comment-modal');
+        const content = document.getElementById('comment-modal-content');
+        const coords = this.resolveCommentAnchor(this.commentAnchor);
+        const margin = 8;
+        const gap = 9;
+        const width = content.offsetWidth;
+        const height = content.offsetHeight;
+        const spaceBelow = window.innerHeight - coords.belowY - gap - margin;
+        const spaceAbove = coords.aboveY - gap - margin;
+
+        let placement = (coords.decisionY <= window.innerHeight / 2 || spaceBelow >= height)
+            ? 'below'
+            : 'above';
+
+        // When neither side can fully fit, use the side with more usable space.
+        if (placement === 'below' && spaceBelow < height && spaceAbove > spaceBelow) {
+            placement = 'above';
+        } else if (placement === 'above' && spaceAbove < height && spaceBelow > spaceAbove) {
+            placement = 'below';
         }
 
-        document.getElementById('comment-text').value = comment.text;
-        document.getElementById('modal-submit').textContent = t('updateComment');
-        document.getElementById('comment-modal').classList.add('active');
-        document.getElementById('comment-text').focus();
+        const anchorY = placement === 'below' ? coords.belowY : coords.aboveY;
+        const preferredTop = placement === 'below'
+            ? anchorY + gap
+            : anchorY - gap - height;
+        const maxLeft = Math.max(margin, window.innerWidth - margin - width);
+        const maxTop = Math.max(margin, window.innerHeight - margin - height);
+        const left = this.clamp(coords.x - 28, margin, maxLeft);
+        const top = this.clamp(preferredTop, margin, maxTop);
+        const arrowX = this.clamp(coords.x - left, 18, width - 18);
+
+        content.dataset.placement = placement;
+        content.style.left = `${Math.round(left)}px`;
+        content.style.top = `${Math.round(top)}px`;
+        content.style.setProperty('--comment-arrow-x', `${Math.round(arrowX)}px`);
+        modal.style.setProperty('--comment-anchor-x', `${Math.round(coords.x)}px`);
+        modal.style.setProperty('--comment-anchor-y', `${Math.round(anchorY)}px`);
     }
 
-    closeModal() {
-        document.getElementById('comment-modal').classList.remove('active');
-        this.pendingComment = null;
-        this.editingComment = null;
+    createLineAnchor(event, lineElement) {
+        const contentElement = lineElement.querySelector('.diff-line-content');
+        const lineRect = lineElement.getBoundingClientRect();
+        const contentRect = contentElement.getBoundingClientRect();
+        const pointX = this.clamp(event.clientX, contentRect.left, window.innerWidth - 8);
+
+        return {
+            sourceElement: lineElement,
+            xElement: contentElement,
+            xOffset: pointX - contentRect.left,
+            yOffset: this.clamp(event.clientY - lineRect.top, 0, lineRect.height),
+            staticX: pointX,
+            staticDecisionY: event.clientY,
+            staticAboveY: lineRect.top,
+            staticBelowY: lineRect.bottom,
+            column: this.getColumnAtPoint(contentElement, pointX, event.clientY),
+        };
+    }
+
+    createElementAnchor(element) {
+        const rect = element.getBoundingClientRect();
+        const xOffset = rect.width / 2;
+        return {
+            sourceElement: element,
+            xElement: element,
+            xOffset,
+            yOffset: rect.height / 2,
+            staticX: rect.left + xOffset,
+            staticDecisionY: rect.top + rect.height / 2,
+            staticAboveY: rect.top,
+            staticBelowY: rect.bottom,
+            column: null,
+        };
+    }
+
+    createViewportAnchor() {
+        const x = window.innerWidth / 2;
+        const y = window.innerHeight / 2;
+        return {
+            sourceElement: null,
+            xElement: null,
+            xOffset: 0,
+            yOffset: 0,
+            staticX: x,
+            staticDecisionY: y,
+            staticAboveY: y,
+            staticBelowY: y,
+            column: null,
+        };
+    }
+
+    resolveCommentAnchor(anchor) {
+        if (anchor.sourceElement && anchor.sourceElement.isConnected) {
+            const sourceRect = anchor.sourceElement.getBoundingClientRect();
+            const xRect = anchor.xElement.getBoundingClientRect();
+            return {
+                x: this.clamp(xRect.left + anchor.xOffset, 8, window.innerWidth - 8),
+                decisionY: sourceRect.top + anchor.yOffset,
+                aboveY: sourceRect.top,
+                belowY: sourceRect.bottom,
+            };
+        }
+
+        return {
+            x: anchor.staticX,
+            decisionY: anchor.staticDecisionY,
+            aboveY: anchor.staticAboveY,
+            belowY: anchor.staticBelowY,
+        };
+    }
+
+    getColumnAtPoint(contentElement, x, y) {
+        const text = contentElement.textContent || '';
+        let caretNode = null;
+        let caretOffset = 0;
+
+        if (document.caretPositionFromPoint) {
+            const caret = document.caretPositionFromPoint(x, y);
+            caretNode = caret && caret.offsetNode;
+            caretOffset = caret ? caret.offset : 0;
+        } else if (document.caretRangeFromPoint) {
+            const range = document.caretRangeFromPoint(x, y);
+            caretNode = range && range.startContainer;
+            caretOffset = range ? range.startOffset : 0;
+        }
+
+        if (caretNode && contentElement.contains(caretNode)) {
+            try {
+                const range = document.createRange();
+                range.setStart(contentElement, 0);
+                range.setEnd(caretNode, caretOffset);
+                return Math.min(Array.from(range.toString()).length + 1, Array.from(text).length + 1);
+            } catch (_) {
+                // Fall through to monospace measurement for unusual DOM caret results.
+            }
+        }
+
+        const codeElement = contentElement.querySelector('code') || contentElement;
+        const style = getComputedStyle(codeElement);
+        this.measureCanvas = this.measureCanvas || document.createElement('canvas');
+        const context = this.measureCanvas.getContext('2d');
+        context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const characterWidth = context.measureText('0').width || 7;
+        const contentLeft = contentElement.getBoundingClientRect().left;
+        const measuredColumn = Math.round(Math.max(0, x - contentLeft) / characterWidth) + 1;
+        return Math.min(measuredColumn, Array.from(text).length + 1);
+    }
+
+    getColumnX(contentElement, column) {
+        let remaining = Math.max(0, column - 1);
+        const walker = document.createTreeWalker(contentElement, NodeFilter.SHOW_TEXT);
+        let node = walker.nextNode();
+
+        while (node) {
+            const characters = Array.from(node.textContent || '');
+            if (remaining <= characters.length) {
+                const utf16Offset = characters.slice(0, remaining).join('').length;
+                try {
+                    const range = document.createRange();
+                    range.setStart(node, utf16Offset);
+                    range.collapse(true);
+                    const rect = range.getBoundingClientRect();
+                    if (rect.left) return rect.left;
+                } catch (_) {
+                    // Fall through to canvas measurement.
+                }
+                break;
+            }
+            remaining -= characters.length;
+            node = walker.nextNode();
+        }
+
+        const text = Array.from(contentElement.textContent || '');
+        const prefix = text.slice(0, Math.max(0, column - 1)).join('');
+        const codeElement = contentElement.querySelector('code') || contentElement;
+        const style = getComputedStyle(codeElement);
+        this.measureCanvas = this.measureCanvas || document.createElement('canvas');
+        const context = this.measureCanvas.getContext('2d');
+        context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        return contentElement.getBoundingClientRect().left + context.measureText(prefix).width;
+    }
+
+    createStoredCommentAnchor(comment) {
+        if (!comment.line || comment.file !== this.currentFile) return null;
+
+        const line = document.querySelector(`.diff-line[data-line="${comment.line}"]`);
+        const content = line && line.querySelector('.diff-line-content');
+        if (!line || !content) return null;
+
+        const lineRect = line.getBoundingClientRect();
+        const contentRect = content.getBoundingClientRect();
+        const x = comment.column ? this.getColumnX(content, comment.column) : contentRect.left;
+        return {
+            sourceElement: line,
+            xElement: content,
+            xOffset: x - contentRect.left,
+            yOffset: lineRect.height / 2,
+            staticX: x,
+            staticDecisionY: lineRect.top + lineRect.height / 2,
+            staticAboveY: lineRect.top,
+            staticBelowY: lineRect.bottom,
+            column: comment.column || null,
+        };
+    }
+
+    clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
     }
 
     async submitComment() {
@@ -512,6 +825,7 @@ class ReviewApp {
                     body: JSON.stringify({
                         file: this.pendingComment.file,
                         line: this.pendingComment.line,
+                        column: this.pendingComment.column,
                         text: text
                     })
                 });
@@ -535,10 +849,11 @@ class ReviewApp {
         }
     }
 
-    editComment(id) {
+    editComment(id, sourceElement = null) {
         const comment = this.comments.find(c => c.id === id);
         if (comment) {
-            this.openEditModal(comment);
+            const anchor = sourceElement ? this.createElementAnchor(sourceElement) : null;
+            this.openEditModal(comment, anchor);
         }
     }
 
