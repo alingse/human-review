@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Review data
@@ -50,6 +50,9 @@ pub struct Comment {
     /// Line number
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line: Option<u32>,
+    /// Column number (for precise inline positioning)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column: Option<u32>,
     /// Comment content
     pub text: String,
     /// Creation time
@@ -57,11 +60,12 @@ pub struct Comment {
 }
 
 impl Comment {
-    pub fn new(file: Option<String>, line: Option<u32>, text: String) -> Self {
+    pub fn new(file: Option<String>, line: Option<u32>, column: Option<u32>, text: String) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             file,
             line,
+            column,
             text,
             created_at: Utc::now(),
         }
@@ -109,6 +113,7 @@ pub struct AddCommentRequest {
     #[serde(rename = "file")]
     pub file: Option<String>,
     pub line: Option<u32>,
+    pub column: Option<u32>,
     pub text: String,
 }
 
@@ -124,4 +129,35 @@ pub struct UpdateCommentRequest {
 pub struct CompletionResponse {
     pub message: String,
     pub comment_count: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn comment_serializes_precise_column() {
+        let comment = Comment::new(
+            Some("src/app.js".to_string()),
+            Some(52),
+            Some(12),
+            "Check this expression".to_string(),
+        );
+        let value = serde_json::to_value(comment).unwrap();
+
+        assert_eq!(value["line"], 52);
+        assert_eq!(value["column"], 12);
+    }
+
+    #[test]
+    fn add_comment_request_accepts_legacy_payload_without_column() {
+        let request: AddCommentRequest = serde_json::from_value(serde_json::json!({
+            "file": "src/app.js",
+            "line": 52,
+            "text": "Legacy comment"
+        }))
+        .unwrap();
+
+        assert_eq!(request.column, None);
+    }
 }
