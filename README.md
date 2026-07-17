@@ -31,6 +31,12 @@ Or use natural language - your AI will understand:
 - `/human-review "Check the authentication module"`
 - `/human-review "I want to review the last 3 commits"`
 
+## Browser Review
+
+Click an exact code position, add an inline comment, then select **Complete Review** to return the feedback to your AI assistant.
+
+![Inline comment anchored to a precise code position](docs/images/precise-inline-review.png)
+
 ## Features
 
 - **Browser-based review** - Light-first web interface with optional dark mode

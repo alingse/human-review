@@ -31,6 +31,12 @@ npx skills add alingse/human-review
 - `/human-review "检查一下认证模块"`
 - `/human-review "我想审查最近 3 次提交"`
 
+## 浏览器端审查
+
+点击代码的具体位置添加内联评论，然后选择**完成审查**，即可将反馈返回给 AI 编码助手。
+
+![锚定到具体代码位置的内联评论](docs/images/precise-inline-review.png)
+
 ## 功能特性
 
 - **浏览器端审查** - 默认浅色、可切换深色的完整 Web 界面
