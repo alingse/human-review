@@ -77,10 +77,14 @@ CLI → Git Ops → Models → Axum Server → Browser
 
 ## Important Conventions
 
-### No Persistence
-- All data in memory only
-- No `.hrevu` directory or config files
-- Results printed to terminal on completion
+### Review History
+- `history.rs` saves one JSON record per review under the user data directory.
+- Save initial file snapshots before serving; persist comment mutations before acknowledging them.
+- `HREVU_DATA_DIR` overrides the base directory; records live in its `reviews/` subdirectory.
+- `hrevu show <id> --json` reads in-progress and completed comments without a server.
+- `hrevu history`, `resume`, and `export` reopen and share saved reviews.
+- Completion persists status and prints results; the web server stays open unless `--exit-on-complete` is set.
+- Historical records are read-only and use saved snapshots, not live files.
 
 ### Error Handling
 - `anyhow::Result<T>` throughout

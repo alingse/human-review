@@ -33,8 +33,16 @@ jobs:
       - name: Run Rust tests
         run: cargo test
 
+      - name: Check saved review lifecycle
+        run: |
+          cargo build
+          python3 tests/history_e2e.py
+
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Check browser JavaScript syntax
-        run: node --check static/app.js
+        run: |
+          node --check static/app.js
+          node --check static/markdown.js
+          node --test tests/markdown.test.cjs
