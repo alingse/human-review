@@ -1,0 +1,2 @@
+# Keep upstream browser distributions unchanged and collapse them in reviews.
+static/vendor/** -whitespace linguist-vendored=true

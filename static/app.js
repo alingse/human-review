@@ -2,6 +2,14 @@
 const i18n = {
     zh: {
         files: '文件',
+        history: '审查历史',
+        exportText: '导出文字',
+        saved: '已自动保存',
+        archived: '历史记录 · 只读',
+        inProgress: '审查中',
+        completed: '已完成',
+        noHistory: '暂无审查记录',
+        historyFailed: '无法读取历史记录，请用 hrevu history 重新打开。',
         comments: '评论',
         selectFile: '选择文件',
         globalComment: '全局评论',
@@ -28,6 +36,13 @@ const i18n = {
         reviewComplete: (count) => `审查完成！共 ${count} 条评论`,
         globalCommentLabel: '全局评论',
         line: '行',
+        renderedView: '渲染',
+        sourceView: '源码',
+        previewHint: '点击正文添加评论，输入后展开；拖动可自由选中文字',
+        expandComment: '展开评论输入框',
+        previousVersion: '修改前的内容',
+        removedContent: '已删除内容',
+        diagramFailed: '图表渲染失败，请查看下方源码。',
         prefix: {
             commit: '提交',
             file: '文件',
@@ -38,6 +53,14 @@ const i18n = {
     },
     en: {
         files: 'Files',
+        history: 'Review history',
+        exportText: 'Export text',
+        saved: 'Saved automatically',
+        archived: 'Saved review · Read only',
+        inProgress: 'In progress',
+        completed: 'Completed',
+        noHistory: 'No saved reviews yet',
+        historyFailed: 'Cannot load history. Reopen it with hrevu history.',
         comments: 'Comments',
         selectFile: 'Select a file',
         globalComment: 'Global Comment',
@@ -64,6 +87,13 @@ const i18n = {
         reviewComplete: (count) => `Review complete! ${count} comment${count !== 1 ? 's' : ''}`,
         globalCommentLabel: 'Global comment',
         line: 'Line',
+        renderedView: 'Rendered',
+        sourceView: 'Source',
+        previewHint: 'Click content to comment; start typing to expand. Drag to select text.',
+        expandComment: 'Expand comment composer',
+        previousVersion: 'Previous version',
+        removedContent: 'Removed content',
+        diagramFailed: 'Could not render diagram. Check the source below.',
         prefix: {
             commit: 'Commit',
             file: 'File',
@@ -127,6 +157,8 @@ class ReviewApp {
         this.commentAnchor = null;
         this.composerPositionFrame = null;
         this.measureCanvas = null;
+        this.viewMode = 'rendered';
+        this.readOnly = false;
 
         this.init();
     }
@@ -177,7 +209,7 @@ class ReviewApp {
             'cs': 'csharp', 'php': 'php', 'rb': 'ruby', 'kt': 'kotlin', 'swift': 'swift',
             'sh': 'bash', 'bash': 'bash', 'zsh': 'bash', 'fish': 'bash',
             'yaml': 'yaml', 'yml': 'yaml', 'json': 'json', 'toml': 'toml',
-            'md': 'markdown', 'html': 'html', 'htm': 'html', 'xml': 'xml',
+            'md': 'markdown', 'markdown': 'markdown', 'mdown': 'markdown', 'mkd': 'markdown', 'html': 'html', 'htm': 'html', 'xml': 'xml',
             'css': 'css', 'scss': 'scss', 'less': 'less',
             'sql': 'sql', 'dockerfile': 'dockerfile', 'Dokerfile': 'dockerfile'
         };
@@ -194,6 +226,15 @@ class ReviewApp {
     }
 
     bindEvents() {
+        document.getElementById('history-btn').addEventListener('click', () => this.showHistory());
+        document.getElementById('history-close').addEventListener('click', () => {
+            document.getElementById('history-panel').hidden = true;
+        });
+        document.getElementById('rendered-view-btn').addEventListener('click', () => this.setViewMode('rendered'));
+        document.getElementById('source-view-btn').addEventListener('click', () => this.setViewMode('source'));
+        document.getElementById('show-comments-btn').addEventListener('click', () => {
+            document.getElementById('comments-sidebar').classList.toggle('active');
+        });
         // Complete button
         document.getElementById('complete-btn').addEventListener('click', () => this.completeReview());
 
@@ -201,8 +242,14 @@ class ReviewApp {
         document.getElementById('modal-close').addEventListener('click', () => this.closeModal());
         document.getElementById('modal-cancel').addEventListener('click', () => this.closeModal());
         document.getElementById('modal-submit').addEventListener('click', () => this.submitComment());
+        document.getElementById('comment-expand').addEventListener('click', () => {
+            this.expandCommentComposer();
+            document.getElementById('comment-text').focus();
+        });
+        document.getElementById('comment-compact-close').addEventListener('click', () => this.closeModal());
         document.getElementById('comment-text').addEventListener('input', () => {
-            this.resizeCommentTextarea();
+            if (document.getElementById('comment-text').value.length) this.expandCommentComposer();
+            else this.resizeCommentTextarea();
         });
         document.getElementById('comment-text').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -214,15 +261,28 @@ class ReviewApp {
         document.addEventListener('pointerdown', (e) => {
             const modal = document.getElementById('comment-modal');
             const content = document.getElementById('comment-modal-content');
-            if (modal.classList.contains('active') && !content.contains(e.target)) {
+            if (modal.classList.contains('active') && !content.contains(e.target) && !e.target.closest('#view-toggle')) {
                 this.closeModal();
             }
         }, true);
         window.addEventListener('resize', () => {
             this.scheduleCommentComposerPosition();
-            this.positionInlineComments(document.getElementById('diff-view'));
+            this.positionReviewComments();
         });
-        document.getElementById('diff-view').addEventListener('scroll', () => {
+        const reviewView = document.getElementById('diff-view');
+        reviewView.addEventListener('pointerdown', (event) => {
+            this.reviewGesture = { x: event.clientX, y: event.clientY, moved: false, scrollTop: reviewView.scrollTop, scrollLeft: reviewView.scrollLeft };
+        });
+        reviewView.addEventListener('pointermove', (event) => {
+            if (this.reviewGesture && Math.hypot(event.clientX - this.reviewGesture.x, event.clientY - this.reviewGesture.y) > 6) {
+                this.reviewGesture.moved = true;
+            }
+        });
+        reviewView.addEventListener('pointercancel', () => {
+            if (this.reviewGesture) this.reviewGesture.moved = true;
+        });
+        reviewView.addEventListener('scroll', () => {
+            if (this.reviewGesture) this.reviewGesture.moved = true;
             this.scheduleCommentComposerPosition();
         }, { passive: true });
 
@@ -264,12 +324,28 @@ class ReviewApp {
 
     async loadData() {
         try {
-            const response = await fetch('/api/data');
+            const query = new URLSearchParams(window.location.search);
+            if (query.has('history')) {
+                document.getElementById('complete-btn').hidden = true;
+                document.getElementById('add-global-comment-btn').hidden = true;
+                document.getElementById('review-title').textContent = t('history');
+                await this.showHistory();
+                return;
+            }
+            const review = query.get('review');
+            const response = await fetch(`/api/data${review ? `?review=${encodeURIComponent(review)}` : ''}`);
+            if (!response.ok) throw new Error(await response.text());
             this.data = await response.json();
 
             document.getElementById('review-title').textContent = generateTitle(this.data.input_type);
             this.files = this.data.files;
             this.comments = this.data.comments;
+            this.readOnly = this.data.read_only;
+            this.updateReviewControls();
+            if (this.data.snapshot_note) {
+                document.getElementById('diff-view').innerHTML = `<p class="recovery-note">${this.escapeHtml(this.data.snapshot_note)}</p>`;
+                document.getElementById('comments-sidebar').classList.add('active');
+            }
 
             this.renderFileList();
             this.renderComments();
@@ -282,6 +358,35 @@ class ReviewApp {
             console.error('Failed to load data:', error);
             this.showError(t('failedToLoad'));
         }
+    }
+
+    updateReviewControls() {
+        document.getElementById('save-status').textContent = this.readOnly ? t('archived') : t('saved');
+        document.getElementById('complete-btn').hidden = this.readOnly;
+        document.getElementById('add-global-comment-btn').hidden = this.readOnly;
+        for (const [id, format] of [['export-text-btn', 'text'], ['export-json-btn', 'json']]) {
+            const link = document.getElementById(id);
+            link.hidden = false;
+            link.href = `/api/reviews/${encodeURIComponent(this.data.review_id)}/export?format=${format}`;
+            link.setAttribute('download', '');
+        }
+    }
+
+    async showHistory() {
+        const panel = document.getElementById('history-panel');
+        const list = document.getElementById('history-list');
+        panel.hidden = false;
+        list.textContent = t('loading');
+        try {
+            const response = await fetch('/api/reviews');
+            if (!response.ok) throw new Error(await response.text());
+            const reviews = await response.json();
+            list.innerHTML = reviews.length ? reviews.map(review => `
+                <a class="history-item" href="/?review=${encodeURIComponent(review.id)}">
+                    <strong>${this.escapeHtml(review.input)}</strong>
+                    <span>${review.status === 'completed' ? t('completed') : t('inProgress')} · ${review.comment_count} ${t('comments')} · ${new Date(review.updated_at).toLocaleString()}</span>
+                </a>`).join('') : `<p>${t('noHistory')}</p>`;
+        } catch (_) { list.textContent = t('historyFailed'); }
     }
 
     showError(message) {
@@ -352,8 +457,238 @@ class ReviewApp {
         this.renderDiff(filePath);
     }
 
+    isMarkdown(file) {
+        return /\.(md|markdown|mdown|mkd)$/i.test(file.path) &&
+            (file.markdown != null || file.original_markdown != null);
+    }
+
+    commentSide(comment, file) {
+        return comment.side || (file?.status === 'deleted' ? 'old' : 'new');
+    }
+
+    // Include all Markdown lines so comments outside a diff hunk remain visible
+    // in source mode. Insert removed rows at their original place in the patch.
+    sourceLines(file) {
+        if (!this.isMarkdown(file)) return file.lines;
+        const source = file.markdown ?? file.original_markdown;
+        const lines = source.replace(/\r\n?/g, '\n').split('\n');
+        if (lines.length > 1 && lines.at(-1) === '') lines.pop();
+        if (file.status === 'deleted') return lines.map((content, index) => ({ number: index + 1, content, type: 'removed' }));
+        const changed = new Map(file.lines.filter(line => line.type !== 'removed').map(line => [line.number, line.type]));
+        const removed = new Map();
+        let pending = [];
+        for (const line of file.lines) {
+            if (line.type === 'removed') pending.push(line);
+            else if (pending.length) {
+                removed.set(line.number, pending);
+                pending = [];
+            }
+        }
+        const result = lines.flatMap((content, index) => [
+            ...(removed.get(index + 1) || []),
+            { number: index + 1, content, type: changed.get(index + 1) },
+        ]);
+        result.push(...pending);
+        // A comment can also target unchanged text in the previous snapshot.
+        // Keep a reference row if that old line is absent from the actual patch.
+        const original = file.original_markdown?.replace(/\r\n?/g, '\n').split('\n') || [];
+        for (const comment of [...(this.comments || []), this.pendingComment].filter(Boolean)) {
+            if (comment.file !== file.path || !comment.line || this.commentSide(comment, file) !== 'old') continue;
+            if (result.some(line => line.number === comment.line && (line.type === 'removed' || line.side === 'old'))) continue;
+            const index = result.findIndex(line => line.number >= comment.line);
+            result.splice(index < 0 ? result.length : index, 0, {
+                number: comment.line, content: original[comment.line - 1] || '', type: 'previous', side: 'old',
+            });
+        }
+        return result;
+    }
+
+    setViewMode(mode) {
+        if (this.viewMode === mode) return;
+        const view = document.getElementById('diff-view');
+        const top = [...view.querySelectorAll('[data-source-start], .diff-line')]
+            .find(el => el.getBoundingClientRect().bottom >= view.getBoundingClientRect().top);
+        const line = Number(top?.dataset.sourceStart || top?.dataset.line || 1);
+        this.viewMode = mode;
+        this.renderDiff(this.currentFile);
+        const target = mode === 'source'
+            ? view.querySelector(`.diff-line[data-line="${line}"]`)
+            : this.findMarkdownBlock(view.querySelector('.markdown-body'), { line });
+        target?.scrollIntoView({ block: 'start' });
+    }
+
     renderDiff(filePath) {
+        const file = this.files.find(file => file.path === filePath);
+        const markdown = file && this.isMarkdown(file);
+        document.getElementById('view-toggle').hidden = !markdown;
+        document.getElementById('rendered-view-btn').setAttribute('aria-pressed', String(this.viewMode === 'rendered'));
+        document.getElementById('source-view-btn').setAttribute('aria-pressed', String(this.viewMode === 'source'));
+        if (markdown && this.viewMode === 'rendered') this.renderMarkdown(file);
+        else this.renderSource(filePath);
+        // A draft is the same comment even when its DOM anchor is replaced.
+        if (this.pendingComment) {
+            this.commentAnchor = this.createStoredCommentAnchor(this.editingComment || this.pendingComment) || this.commentAnchor;
+            this.scheduleCommentComposerPosition();
+        }
+    }
+
+    renderMarkdown(file) {
+        const view = document.getElementById('diff-view');
+        const side = file.markdown == null ? 'old' : 'new';
+        const article = (source, side) => `<article class="markdown-body" data-side="${side}" data-lines="${source.split('\n').length}">${markdownParser.render(source)}</article>`;
+        const oldComments = [...this.comments, this.pendingComment].filter(Boolean).some(comment => comment.file === file.path && this.commentSide(comment, file) === 'old');
+        view.innerHTML = `<p class="preview-hint">${t('previewHint')}</p>${article(file.markdown ?? file.original_markdown, side)}
+            ${side === 'new' && oldComments && file.original_markdown != null ? `<details class="previous-version" open><summary>${t('previousVersion')}</summary>${article(file.original_markdown, 'old')}</details>` : ''}`;
+        view.onclick = event => {
+            if (this.readOnly || this.viewMode !== 'rendered' || !this.isCommentClick(event)) return;
+            const body = event.target.closest('.markdown-body');
+            if (!body) return;
+            const bodyRect = body.getBoundingClientRect();
+            const style = getComputedStyle(body);
+            if (event.clientX < bodyRect.left + parseFloat(style.paddingLeft) ||
+                event.clientX > bodyRect.right - parseFloat(style.paddingRight)) return;
+            if (event.target.closest('.inline-comments, .review-pin, summary, a, button')) return;
+            const block = this.blockAtPoint(body, event.clientX, event.clientY);
+            const rect = block.getBoundingClientRect();
+            const x = (event.clientX - rect.left) / Math.max(1, rect.width);
+            const y = (event.clientY - rect.top) / Math.max(1, rect.height);
+            const start = Number(block.dataset.sourceStart || 1);
+            const end = Number(block.dataset.sourceEnd || body.dataset.lines);
+            const selection = window.getSelection();
+            const quote = selection && body.contains(selection.anchorNode) && body.contains(selection.focusNode) ? selection.toString() : '';
+            const anchor = { start_line: start, end_line: end, x, y, quote: (quote || block.textContent).trim().slice(0, 240) };
+            const line = this.clamp(start + Math.floor(y * (end - start + 1)), start, end);
+            this.openCommentModal(file.path, line, this.createPointAnchor(block, x, y));
+            this.pendingComment.side = body.dataset.side;
+            this.pendingComment.anchor = anchor;
+            this.updateCommentComposerInfo(file.path, line, null, anchor);
+        };
+        view.querySelectorAll('.markdown-body').forEach(body => {
+            // Keyboard users can add a comment at the start of a rendered block.
+            body.tabIndex = 0;
+            body.addEventListener('keydown', event => {
+                if (event.key !== 'Enter' || event.target !== body) return;
+                event.preventDefault();
+                const block = body.querySelector('[data-source-start]') || body;
+                const rect = block.getBoundingClientRect();
+                block.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: rect.left, clientY: rect.top }));
+            });
+        });
+        for (const comment of this.comments.filter(comment => comment.file === file.path && comment.line)) {
+            const body = this.markdownArticle(comment);
+            if (!body) continue;
+            const block = this.findMarkdownBlock(body, comment);
+            let after = block;
+            while (after.parentElement !== body && after !== body) after = after.parentElement;
+            let group = after === body ? body.querySelector(':scope > .inline-comments') : after.nextElementSibling;
+            if (!group?.classList.contains('inline-comments')) {
+                group = document.createElement('div');
+                group.className = 'inline-comments rendered-comments';
+                if (after === body) body.append(group);
+                else after.after(group);
+            }
+            group.insertAdjacentHTML('beforeend', this.renderInlineComment(comment));
+            const pin = document.createElement('button');
+            pin.className = 'review-pin';
+            pin.dataset.id = comment.id;
+            pin.textContent = String(this.comments.indexOf(comment) + 1);
+            pin.title = comment.text;
+            pin.setAttribute('aria-label', this.readOnly ? comment.text : `${t('edit')}: ${comment.text}`);
+            pin.addEventListener('click', () => {
+                if (this.readOnly) body.querySelector(`.inline-comment[data-id="${comment.id}"]`)?.scrollIntoView({ block: 'nearest' });
+                else this.editComment(comment.id, pin);
+            });
+            body.append(pin);
+        }
+        view.querySelectorAll('img').forEach(img => img.addEventListener('load', () => this.positionReviewComments()));
+        view.querySelectorAll('details').forEach(details => details.addEventListener('toggle', () => this.positionReviewComments()));
+        this.positionReviewComments();
+        renderMermaidDiagrams(view, () => this.positionReviewComments());
+    }
+
+    markdownArticle(comment) {
+        const file = this.files.find(file => file.path === comment.file);
+        return document.querySelector(`.markdown-body[data-side="${this.commentSide(comment, file)}"]`);
+    }
+
+    isCommentClick(event) {
+        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return false;
+        // Keyboard activation has no pointer gesture. A drag stays a drag even
+        // when it ends back at its starting point or scrolls the document.
+        if (event.detail === 0) return true;
+        const gesture = this.reviewGesture;
+        const view = document.getElementById('diff-view');
+        return !gesture || (!gesture.moved && gesture.scrollTop === view.scrollTop && gesture.scrollLeft === view.scrollLeft &&
+            Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) <= 6);
+    }
+
+    findMarkdownBlock(body, comment) {
+        if (!body) return null;
+        const start = comment.anchor?.start_line || comment.line || 1;
+        const end = comment.anchor?.end_line || start;
+        const blocks = [...body.querySelectorAll('[data-source-start]')];
+        // Prefer the smallest containing block (table row, list item, paragraph).
+        const containing = blocks.filter(el => Number(el.dataset.sourceStart) <= start && Number(el.dataset.sourceEnd) >= end);
+        containing.sort((a, b) => (a.dataset.sourceEnd - a.dataset.sourceStart) - (b.dataset.sourceEnd - b.dataset.sourceStart));
+        return containing[0] || blocks.sort((a, b) => Math.abs(a.dataset.sourceStart - start) - Math.abs(b.dataset.sourceStart - start))[0] || body;
+    }
+
+    blockAtPoint(body, x, y) {
+        const blocks = [...body.querySelectorAll('[data-source-start]')].filter(el => el.getBoundingClientRect().height > 0);
+        let nearest = body;
+        let distance = Infinity;
+        for (const block of blocks) {
+            const rect = block.getBoundingClientRect();
+            const d = Math.max(rect.top - y, 0, y - rect.bottom) + Math.max(rect.left - x, 0, x - rect.right);
+            if (d <= distance) { nearest = block; distance = d; }
+        }
+        // Equal source ranges can belong to nested elements. Capture points
+        // against the same canonical element used when restoring comments.
+        return this.findMarkdownBlock(body, { anchor: {
+            start_line: Number(nearest.dataset.sourceStart || 1),
+            end_line: Number(nearest.dataset.sourceEnd || body.dataset.lines),
+        } });
+    }
+
+    renderedPoint(comment, body) {
+        const block = this.findMarkdownBlock(body, comment);
+        const start = Number(block.dataset.sourceStart || 1);
+        const end = Number(block.dataset.sourceEnd || body.dataset.lines);
+        return {
+            block,
+            x: comment.anchor?.x ?? Math.min(0.95, ((comment.column || 1) - 1) / 100),
+            y: comment.anchor?.y ?? this.clamp(((comment.line || start) - start + 0.5) / (end - start + 1), 0, 1),
+        };
+    }
+
+    createPointAnchor(block, x, y) {
+        const rect = block.getBoundingClientRect();
+        return { sourceElement: block, xElement: block, xOffset: rect.width * x, yOffset: rect.height * y,
+            point: true, staticX: rect.left + rect.width * x, staticDecisionY: rect.top + rect.height * y,
+            staticAboveY: rect.top + rect.height * y, staticBelowY: rect.top + rect.height * y };
+    }
+
+    positionReviewComments() {
+        const view = document.getElementById('diff-view');
+        this.positionInlineComments(view);
+        view.querySelectorAll('.review-pin').forEach(pin => {
+            const comment = this.comments.find(comment => comment.id === pin.dataset.id);
+            const body = pin.parentElement;
+            const point = this.renderedPoint(comment, body);
+            const rect = point.block.getBoundingClientRect();
+            const bodyRect = body.getBoundingClientRect();
+            pin.style.left = `${rect.left - bodyRect.left + point.x * rect.width}px`;
+            pin.style.top = `${rect.top - bodyRect.top + point.y * rect.height}px`;
+        });
+        if (this.pendingComment) {
+            this.commentAnchor = this.createStoredCommentAnchor(this.editingComment || this.pendingComment) || this.commentAnchor;
+            this.scheduleCommentComposerPosition();
+        }
+    }
+
+    renderSource(filePath) {
         const diffView = document.getElementById('diff-view');
+        diffView.onclick = null;
         const file = this.files.find(f => f.path === filePath);
 
         if (!file) {
@@ -365,10 +700,8 @@ class ReviewApp {
         const commentsByLine = {};
         for (const comment of this.comments) {
             if (comment.file === filePath && comment.line) {
-                if (!commentsByLine[comment.line]) {
-                    commentsByLine[comment.line] = [];
-                }
-                commentsByLine[comment.line].push(comment);
+                const key = `${comment.line}:${this.commentSide(comment, file)}`;
+                (commentsByLine[key] ||= []).push(comment);
             }
         }
 
@@ -378,24 +711,26 @@ class ReviewApp {
                 <h3>${this.escapeHtml(filePath)}</h3>
             </div>`;
 
-        for (const line of file.lines) {
+        for (const line of this.sourceLines(file)) {
+            const side = line.side || (line.type === 'removed' ? 'old' : 'new');
+            const lineComments = commentsByLine[`${line.number}:${side}`] || [];
             const lineClass = line.type ? line.type : 'context';
-            const hasComments = commentsByLine[line.number] && commentsByLine[line.number].length > 0;
+            const hasComments = lineComments.length > 0;
 
             html += `
                 <div class="diff-line ${lineClass}"
                      data-file="${this.escapeHtml(filePath)}"
-                     data-line="${line.number}">
+                     data-line="${line.number}" data-side="${side}"${line.type === 'previous' ? ` title="${t('previousVersion')}"` : ''}>
                     <span class="diff-line-number">${line.number > 0 ? line.number : ''}</span>
                     <span class="diff-line-content"><code>${this.highlightCode(line.content, filePath)}</code></span>
-                    ${hasComments ? `<span class="comment-marker">${commentsByLine[line.number].length}</span>` : ''}
+                    ${hasComments ? `<span class="comment-marker">${lineComments.length}</span>` : ''}
                 </div>
             `;
 
             // Render inline comments
             if (hasComments) {
-                html += `<div class="inline-comments" data-line="${line.number}">`;
-                for (const comment of commentsByLine[line.number]) {
+                html += `<div class="inline-comments" data-line="${line.number}" data-side="${side}">`;
+                for (const comment of lineComments) {
                     html += this.renderInlineComment(comment);
                 }
                 html += '</div>';
@@ -408,11 +743,13 @@ class ReviewApp {
         // Add click handlers to lines
         diffView.querySelectorAll('.diff-line').forEach(lineEl => {
             lineEl.addEventListener('click', (event) => {
+                if (this.readOnly || !this.isCommentClick(event)) return;
                 const file = lineEl.dataset.file;
                 const lineNum = parseInt(lineEl.dataset.line);
                 if (lineNum > 0) {
                     const anchor = this.createLineAnchor(event, lineEl);
                     this.openCommentModal(file, lineNum, anchor);
+                    this.pendingComment.side = lineEl.dataset.side;
                 }
             });
         });
@@ -430,11 +767,12 @@ class ReviewApp {
                         <span class="inline-comment-author">${t('you')}</span>
                         <span class="inline-comment-time">${time}</span>
                     </div>
-                    <div class="inline-comment-actions">
+                    <div class="inline-comment-actions"${this.readOnly ? ' hidden' : ''}>
                         <button type="button" class="inline-comment-action btn-edit" data-id="${comment.id}">${t('edit')}</button>
                         <button type="button" class="inline-comment-action inline-comment-action-danger btn-delete" data-id="${comment.id}">${t('delete')}</button>
                     </div>
                 </div>
+                ${comment.anchor?.quote ? `<div class="comment-quote">${this.escapeHtml(comment.anchor.quote)}</div>` : ''}
                 <div class="inline-comment-text">${this.escapeHtml(comment.text)}</div>
             </div>
         `;
@@ -442,7 +780,7 @@ class ReviewApp {
 
     positionInlineComments(diffView) {
         diffView.querySelectorAll('.inline-comments').forEach(group => {
-            const line = diffView.querySelector(`.diff-line[data-line="${group.dataset.line}"]`);
+            const line = diffView.querySelector(`.diff-line[data-line="${group.dataset.line}"][data-side="${group.dataset.side}"]`);
             const content = line && line.querySelector('.diff-line-content');
             if (!content) return;
 
@@ -484,7 +822,7 @@ class ReviewApp {
         commentsList.innerHTML = this.comments.map(comment => {
             const time = new Date(comment.created_at).toLocaleString();
             const location = comment.file
-                ? `${comment.file}${comment.line ? `:L${comment.line}` : ''}${comment.column ? `:C${comment.column}` : ''}`
+                ? `${comment.file}${comment.anchor ? `:≈L${comment.anchor.start_line}–${comment.anchor.end_line}` : comment.line ? `:L${comment.line}` : ''}${comment.column ? `:C${comment.column}` : ''}${comment.side === 'old' ? ` (${t('removedContent')})` : ''}`
                 : t('globalCommentLabel');
 
             return `
@@ -493,8 +831,9 @@ class ReviewApp {
                         <span class="comment-card-location">${this.escapeHtml(location)}</span>
                         <span class="comment-card-time">${time}</span>
                     </div>
+                    ${comment.anchor?.quote ? `<div class="comment-quote">${this.escapeHtml(comment.anchor.quote)}</div>` : ''}
                     <div class="comment-card-text">${this.escapeHtml(comment.text)}</div>
-                    <div class="comment-card-actions">
+                    <div class="comment-card-actions"${this.readOnly ? ' hidden' : ''}>
                         <button class="btn-edit" data-id="${comment.id}">${t('edit')}</button>
                         <button class="btn-delete" data-id="${comment.id}">${t('delete')}</button>
                     </div>
@@ -504,8 +843,9 @@ class ReviewApp {
     }
 
     openCommentModal(file, line, anchor = null) {
+        if (this.readOnly) return;
         this.commentAnchor = anchor || this.createViewportAnchor();
-        this.pendingComment = { file, line, column: this.commentAnchor.column || null };
+        this.pendingComment = { file, line, column: this.commentAnchor.column || null, side: null, anchor: null };
         this.editingComment = null;
 
         this.updateCommentComposerInfo(file, line, this.commentAnchor.column);
@@ -515,11 +855,12 @@ class ReviewApp {
     }
 
     openEditModal(comment, anchor = null) {
+        if (this.readOnly) return;
         this.editingComment = comment;
         this.pendingComment = { file: comment.file, line: comment.line, column: comment.column || null };
         this.commentAnchor = this.createStoredCommentAnchor(comment) || anchor || this.createViewportAnchor();
 
-        this.updateCommentComposerInfo(comment.file, comment.line, comment.column);
+        this.updateCommentComposerInfo(comment.file, comment.line, comment.column, comment.anchor);
         document.getElementById('comment-modal-title').textContent = t('updateComment');
         document.getElementById('modal-submit').textContent = t('updateComment');
         this.showCommentComposer(comment.text);
@@ -544,6 +885,9 @@ class ReviewApp {
         const textarea = document.getElementById('comment-text');
         textarea.value = text;
         textarea.style.height = '';
+        modal.classList.toggle('compact', !text && !this.editingComment);
+        document.getElementById('comment-expand').setAttribute('aria-label', t('expandComment'));
+        document.getElementById('comment-compact-close').setAttribute('aria-label', t('closeComment'));
         document.getElementById('comment-submit-hint').textContent = t('submitHint');
         modal.classList.add('active');
         modal.setAttribute('aria-hidden', 'false');
@@ -552,9 +896,16 @@ class ReviewApp {
         textarea.focus();
     }
 
-    updateCommentComposerInfo(file, line, column) {
+    expandCommentComposer() {
+        document.getElementById('comment-modal').classList.remove('compact');
+        this.resizeCommentTextarea();
+    }
+
+    updateCommentComposerInfo(file, line, column, anchor = null) {
         const info = document.getElementById('comment-info');
-        if (file && line) {
+        if (anchor) {
+            info.textContent = `${file} · ≈ L${anchor.start_line}–${anchor.end_line} · ${anchor.quote}`;
+        } else if (file && line) {
             info.textContent = `${file} · L${line}${column ? `:C${column}` : ''}`;
         } else if (file) {
             info.textContent = file;
@@ -566,8 +917,9 @@ class ReviewApp {
 
     resizeCommentTextarea() {
         const textarea = document.getElementById('comment-text');
+        const compact = document.getElementById('comment-modal').classList.contains('compact');
         textarea.style.height = 'auto';
-        textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 82), 220)}px`;
+        textarea.style.height = compact ? '32px' : `${Math.min(Math.max(textarea.scrollHeight, 82), 220)}px`;
         this.scheduleCommentComposerPosition();
     }
 
@@ -684,8 +1036,8 @@ class ReviewApp {
             return {
                 x: this.clamp(xRect.left + anchor.xOffset, 8, window.innerWidth - 8),
                 decisionY: sourceRect.top + anchor.yOffset,
-                aboveY: sourceRect.top,
-                belowY: sourceRect.bottom,
+                aboveY: anchor.point ? sourceRect.top + anchor.yOffset : sourceRect.top,
+                belowY: anchor.point ? sourceRect.top + anchor.yOffset : sourceRect.bottom,
             };
         }
 
@@ -770,8 +1122,14 @@ class ReviewApp {
 
     createStoredCommentAnchor(comment) {
         if (!comment.line || comment.file !== this.currentFile) return null;
+        const article = this.markdownArticle(comment);
+        if (article) {
+            const point = this.renderedPoint(comment, article);
+            return this.createPointAnchor(point.block, point.x, point.y);
+        }
 
-        const line = document.querySelector(`.diff-line[data-line="${comment.line}"]`);
+        const file = this.files.find(file => file.path === comment.file);
+        const line = document.querySelector(`.diff-line[data-line="${comment.line}"][data-side="${this.commentSide(comment, file)}"]`);
         const content = line && line.querySelector('.diff-line-content');
         if (!line || !content) return null;
 
@@ -796,6 +1154,7 @@ class ReviewApp {
     }
 
     async submitComment() {
+        if (this.readOnly) return;
         const text = document.getElementById('comment-text').value.trim();
         if (!text) return;
 
@@ -826,6 +1185,8 @@ class ReviewApp {
                         file: this.pendingComment.file,
                         line: this.pendingComment.line,
                         column: this.pendingComment.column,
+                        side: this.pendingComment.side,
+                        anchor: this.pendingComment.anchor,
                         text: text
                     })
                 });
@@ -837,6 +1198,7 @@ class ReviewApp {
                 }
             }
 
+            if (!response.ok) throw new Error(await response.text());
             this.closeModal();
             this.renderFileList();
             this.renderComments();
@@ -858,11 +1220,13 @@ class ReviewApp {
     }
 
     async deleteComment(id) {
+        if (this.readOnly) return;
         try {
             const response = await fetch(`/api/comments/${id}`, {
                 method: 'DELETE'
             });
 
+            if (!response.ok) throw new Error(await response.text());
             if (response.ok) {
                 this.comments = this.comments.filter(c => c.id !== id);
                 this.renderFileList();
@@ -879,14 +1243,21 @@ class ReviewApp {
     }
 
     async completeReview() {
+        if (this.readOnly) return;
         try {
             const response = await fetch('/api/complete', {
                 method: 'POST'
             });
+            if (!response.ok) throw new Error(await response.text());
 
             if (response.ok) {
                 const result = await response.json();
-                this.showSuccess(t('reviewComplete', result.comment_count), true);
+                this.showSuccess(t('reviewComplete', result.comment_count));
+                this.readOnly = true;
+                this.closeModal();
+                this.updateReviewControls();
+                this.renderComments();
+                if (this.currentFile) this.renderDiff(this.currentFile);
 
                 // Update button state
                 const btn = document.getElementById('complete-btn');
@@ -902,7 +1273,7 @@ class ReviewApp {
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
-        return div.innerHTML;
+        return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 }
 

@@ -1,22 +1,24 @@
 use anyhow::Result;
-use clap::Parser;
-use colored::Colorize;
-use tracing::{info, warn};
 use chrono::Utc;
+use clap::Parser;
 use std::collections::HashMap;
 use std::process::Command;
+use tracing::{info, warn};
 
 mod cli;
-mod server;
 mod git_ops;
+mod history;
 mod models;
-mod routes;
 mod output;
+mod routes;
+mod server;
 mod static_assets;
 
-use cli::Args;
-use git_ops::{parse_input, extract_file_lines};
-use output::{print_summary, print_json};
+use cli::{Args, Command as ReviewCommand, ExportFormat};
+use git_ops::{extract_file_lines, parse_input};
+use history::ReviewStore;
+use models::{ReviewSession, ReviewStatus};
+use output::{print_json, print_summary};
 
 /// Detect if running under WSL
 fn is_wsl() -> bool {
@@ -52,76 +54,117 @@ async fn main() -> Result<()> {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
+        .with_writer(std::io::stderr)
         .init();
 
     let args = Args::parse();
-    let input = parse_input(&args.input)?;
-    info!("Parsed input: {:?}", input);
-
-    let input_str = input.display_title();
-
-    let data = crate::models::ReviewData {
-        input_type: input.clone(),
-        input: input_str,
-        comments: Vec::new(),
-        created_at: Utc::now(),
-        status: crate::models::ReviewStatus::InProgress,
-    };
-
-    println!();
-    println!("{}", "▶ Starting hrevu...".bold().cyan());
-    println!("  Target: {}", data.input);
-    println!();
-
-    let port = server::run(args.port, data).await?;
-    let url = format!("http://localhost:{}", port);
-
-    println!("  Server: {}", url.dimmed());
-    println!();
-
-    if let Err(e) = open_browser(&url) {
-        warn!("Failed to open browser: {}", e);
-        println!("  {}", format!("Please open {} in your browser", url).yellow());
-    } else {
-        println!("  {}", "Browser opened automatically".green());
-    }
-
-    println!();
-    println!("{}", "Waiting for review to complete...".dimmed());
-    println!("{}", "Press Ctrl+C to cancel".dimmed());
-    println!();
-
-    let final_data = server::wait_for_completion().await?;
-
-    let file_contents: HashMap<String, Vec<String>> = match &final_data.input_type {
-        crate::models::InputType::FileContent { path } => {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-                HashMap::from([(path.clone(), lines)])
+    let store = ReviewStore::default_location()?;
+    let mut browsing_history = false;
+    let session = match args.command {
+        Some(ReviewCommand::History) if args.json => {
+            println!("{}", serde_json::to_string_pretty(&store.list()?)?);
+            return Ok(());
+        }
+        Some(ReviewCommand::Show { id }) => {
+            println!("{}", serde_json::to_string_pretty(&store.load(&id)?)?);
+            return Ok(());
+        }
+        Some(ReviewCommand::Export { id, format, output }) => {
+            let session = store.load(&id)?;
+            let content = match format {
+                ExportFormat::Json => serde_json::to_string_pretty(&session)?,
+                ExportFormat::Text => output::export_text(&session),
+            };
+            if let Some(path) = output {
+                std::fs::write(&path, content)?;
+                eprintln!("Exported review to {}", path.display());
             } else {
-                HashMap::new()
+                println!("{content}");
             }
+            return Ok(());
         }
-        crate::models::InputType::CommitDiff { commit } => {
-            git_ops::get_commit_diff(commit)
-                .map(extract_file_lines)
-                .unwrap_or_default()
+        Some(ReviewCommand::History) => {
+            browsing_history = true;
+            None
         }
-        crate::models::InputType::WorkingTreeDiff => {
-            git_ops::get_working_tree_diff()
-                .map(extract_file_lines)
-                .unwrap_or_default()
+        Some(ReviewCommand::Resume { id }) => {
+            let session = store.load(&id)?;
+            anyhow::ensure!(
+                session.data.status == ReviewStatus::InProgress,
+                "This review is completed; use hrevu history to view it"
+            );
+            Some(session)
+        }
+        None => {
+            let input = parse_input(args.input.as_deref().expect("clap requires input"))?;
+            info!("Parsed input: {:?}", input);
+            let files = match &input {
+                models::InputType::CommitDiff { commit } => git_ops::get_commit_diff(commit)?,
+                models::InputType::FileContent { path } => git_ops::get_file_content(path)?,
+                models::InputType::WorkingTreeDiff => git_ops::get_working_tree_diff()?,
+            };
+            let now = Utc::now();
+            let session = ReviewSession {
+                id: uuid::Uuid::new_v4().to_string(),
+                cwd: std::env::current_dir()?,
+                updated_at: now,
+                data: models::ReviewData {
+                    input: input.display_title(),
+                    input_type: input,
+                    comments: Vec::new(),
+                    created_at: now,
+                    status: ReviewStatus::InProgress,
+                },
+                files,
+                snapshot_note: None,
+            };
+            store.save(&session)?;
+            Some(session)
         }
     };
-
-    if args.json {
-        print_json(&final_data);
-    } else {
-        print_summary(&final_data, &file_contents);
+    println!("\n▶ Starting hrevu...");
+    if let Some(session) = &session {
+        println!("  Target: {}", session.data.input);
+        println!("  Review ID: {}", session.id);
+        println!("  Saved: {}", store.path(&session.id)?.display());
+        println!("  Read anytime: hrevu show {} --json", session.id);
     }
-
-    println!();
-    println!("{}", "✓ Review complete!".bold().green());
-
+    let (port, state) = server::run(args.port, session, store).await?;
+    let url = format!(
+        "http://localhost:{}{}",
+        port,
+        if browsing_history { "/?history=1" } else { "/" }
+    );
+    println!("  Server: {url}\n");
+    if !args.no_open {
+        if let Err(error) = open_browser(&url) {
+            warn!("Failed to open browser: {error}");
+        }
+    }
+    if browsing_history {
+        println!("Saved reviews are available in the browser. Press Ctrl+C to stop serving.");
+        tokio::signal::ctrl_c().await?;
+        return Ok(());
+    }
+    println!("Comments are saved automatically. Waiting for review completion...");
+    let session = tokio::select! {
+        result = server::wait_for_completion(&state) => result?,
+        result = tokio::signal::ctrl_c() => {
+            result?;
+            println!("Review saved. Use hrevu resume <review-id> to continue.");
+            return Ok(());
+        }
+    };
+    let file_contents: HashMap<String, Vec<String>> = extract_file_lines(session.files.clone());
+    if args.json {
+        print_json(&session);
+    } else {
+        print_summary(&session.data, &file_contents);
+    }
+    println!("\n✓ Review complete and saved: {}", session.id);
+    if !args.exit_on_complete {
+        println!("History and exports remain available at {url}. Press Ctrl+C to stop serving.");
+        tokio::signal::ctrl_c().await?;
+    }
     Ok(())
 }

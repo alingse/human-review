@@ -17,6 +17,44 @@ pub struct ReviewData {
     pub status: ReviewStatus,
 }
 
+/// Durable review record, including the exact content the reviewer saw.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewSession {
+    pub id: String,
+    pub cwd: std::path::PathBuf,
+    pub updated_at: DateTime<Utc>,
+    #[serde(flatten)]
+    pub data: ReviewData,
+    pub files: Vec<FileData>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot_note: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReviewSummary {
+    pub id: String,
+    pub input: String,
+    pub cwd: std::path::PathBuf,
+    pub status: ReviewStatus,
+    pub comment_count: usize,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<ReviewSession> for ReviewSummary {
+    fn from(session: ReviewSession) -> Self {
+        Self {
+            id: session.id,
+            input: session.data.input,
+            cwd: session.cwd,
+            status: session.data.status,
+            comment_count: session.data.comments.len(),
+            created_at: session.data.created_at,
+            updated_at: session.updated_at,
+        }
+    }
+}
+
 /// Input type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -53,6 +91,12 @@ pub struct Comment {
     /// Column number (for precise inline positioning)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub column: Option<u32>,
+    /// Diff side; absent in comments from older clients.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub side: Option<DiffSide>,
+    /// Source range and relative point in a rendered Markdown block.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<MarkdownAnchor>,
     /// Comment content
     pub text: String,
     /// Creation time
@@ -66,14 +110,32 @@ impl Comment {
             file,
             line,
             column,
+            side: None,
+            anchor: None,
             text,
             created_at: Utc::now(),
         }
     }
 }
 
-/// Review status
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum DiffSide {
+    Old,
+    New,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarkdownAnchor {
+    pub start_line: u32,
+    pub end_line: u32,
+    pub x: f64,
+    pub y: f64,
+    pub quote: String,
+}
+
+/// Review status
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ReviewStatus {
     #[serde(rename = "in_progress")]
     InProgress,
@@ -84,21 +146,31 @@ pub enum ReviewStatus {
 /// API response - initial data
 #[derive(Debug, Serialize)]
 pub struct DataResponse {
+    pub review_id: String,
+    pub status: ReviewStatus,
+    pub read_only: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot_note: Option<String>,
     pub input_type: InputType,
     pub files: Vec<FileData>,
     pub comments: Vec<Comment>,
 }
 
 /// File data (for frontend rendering)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileData {
     pub path: String,
     pub status: String,
     pub lines: Vec<LineData>,
+    /// Complete snapshots, since diff hunks alone cannot render Markdown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_markdown: Option<String>,
 }
 
 /// Line data
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LineData {
     pub number: u32,
     pub content: String,
@@ -114,6 +186,8 @@ pub struct AddCommentRequest {
     pub file: Option<String>,
     pub line: Option<u32>,
     pub column: Option<u32>,
+    pub side: Option<DiffSide>,
+    pub anchor: Option<MarkdownAnchor>,
     pub text: String,
 }
 

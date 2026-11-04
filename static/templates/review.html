@@ -16,9 +16,14 @@
                 <span class="title" id="review-title">Loading...</span>
             </div>
             <div class="header-right">
+                <span class="save-status" id="save-status" role="status"></span>
+                <button class="btn btn-sm" id="history-btn" data-i18n="history">History</button>
+                <a class="btn btn-sm" id="export-text-btn" data-i18n="exportText" hidden>Export text</a>
+                <a class="btn btn-sm" id="export-json-btn" hidden>JSON</a>
                 <button class="btn btn-sm" id="theme-toggle" title="Toggle theme">
                     <span id="theme-icon">🌙</span>
                 </button>
+                <button class="btn btn-sm" id="show-comments-btn" data-i18n="comments">Comments</button>
                 <button class="btn btn-primary" id="complete-btn" data-i18n="completeReview">Complete Review</button>
             </div>
         </header>
@@ -37,7 +42,13 @@
             <section class="content">
                 <div class="content-header">
                     <h2 id="current-file-name" data-i18n="selectFile">Select a file</h2>
-                    <button class="btn btn-sm" id="add-global-comment-btn" data-i18n="addGlobalComment">+ Global Comment</button>
+                    <div class="content-actions">
+                        <div class="view-toggle" id="view-toggle" role="group" aria-label="Markdown view" hidden>
+                            <button class="btn btn-sm" id="rendered-view-btn" data-i18n="renderedView" aria-pressed="true">Rendered</button>
+                            <button class="btn btn-sm" id="source-view-btn" data-i18n="sourceView" aria-pressed="false">Source</button>
+                        </div>
+                        <button class="btn btn-sm" id="add-global-comment-btn" data-i18n="addGlobalComment">+ Global Comment</button>
+                    </div>
                 </div>
                 <div class="diff-view" id="diff-view">
                     <!-- Diff content will be rendered here -->
@@ -45,6 +56,14 @@
             </section>
         </main>
     </div>
+
+    <section class="history-panel" id="history-panel" aria-labelledby="history-title" hidden>
+        <div class="history-header">
+            <h2 id="history-title" data-i18n="history">History</h2>
+            <button class="modal-close" id="history-close" aria-label="Close history">&times;</button>
+        </div>
+        <div id="history-list"></div>
+    </section>
 
     <!-- Inline Comment Composer -->
     <div class="modal" id="comment-modal" aria-hidden="true">
@@ -62,6 +81,10 @@
             </div>
             <div class="modal-body">
                 <textarea id="comment-text" rows="4" data-i18n-placeholder="enterComment" placeholder="Enter your comment..."></textarea>
+                <div class="comment-compact-actions">
+                    <button type="button" class="modal-close" id="comment-expand" aria-label="Expand comment composer">↗</button>
+                    <button type="button" class="modal-close" id="comment-compact-close" aria-label="Close comment composer">&times;</button>
+                </div>
             </div>
             <div class="modal-footer">
                 <span class="comment-submit-hint" id="comment-submit-hint">Enter send · Shift Enter new line</span>
@@ -83,6 +106,9 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="/static/vendor/markdown-it.min.js"></script>
+    <script src="/static/vendor/mermaid.min.js"></script>
+    <script src="/static/markdown.js"></script>
     <script src="/static/app.js"></script>
     <script>
         // Apply translations to static elements
@@ -91,6 +117,8 @@
                 zh: {
                     completeReview: '完成审查',
                     files: '文件',
+                    history: '审查历史',
+                    exportText: '导出文字',
                     selectFile: '选择文件',
                     addGlobalComment: '+ 全局评论',
                     addComment: '添加评论',
@@ -99,10 +127,14 @@
                     cancel: '取消',
                     comments: '评论',
                     enterComment: '输入你的评论...',
+                    renderedView: '渲染',
+                    sourceView: '源码',
                 },
                 en: {
                     completeReview: 'Complete Review',
                     files: 'Files',
+                    history: 'Review history',
+                    exportText: 'Export text',
                     selectFile: 'Select a file',
                     addGlobalComment: '+ Global Comment',
                     addComment: 'Add Comment',
@@ -111,6 +143,8 @@
                     cancel: 'Cancel',
                     comments: 'Comments',
                     enterComment: 'Enter your comment...',
+                    renderedView: 'Rendered',
+                    sourceView: 'Source',
                 }
             };
 
