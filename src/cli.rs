@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
-#[command(name = "hrevu", author = "hrevu", version = "0.1.6")]
+#[command(name = "hrevu", author = "hrevu", version = "0.2.0")]
 #[command(
     about = "Human review CLI tool for AI",
     subcommand_negates_reqs = true,
